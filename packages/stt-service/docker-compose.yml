@@ -12,6 +12,7 @@ services:
       - ./uploads:/app/uploads
       - ./results:/app/results
       - ./.env.yandex:/app/.env.yandex:ro
+      - /root/hearyou/core:/app/core:ro
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped

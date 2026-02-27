@@ -32,12 +32,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Импорт из общего модуля core
-sys.path.insert(0, '/root/hearyou')
+# Добавить путь к stt-yandex
+sys.path.insert(0, str(Path(__file__).parent.parent / "stt-yandex"))
 
-from core.yandex_stt import YandexSTT
-from core.stt_corrections import TranscriptionCorrector
-from core.filler_words_filter import FillerWordsFilter
+from yandex_stt import YandexSTT
+from stt_corrections import TranscriptionCorrector
+from filler_words_filter import FillerWordsFilter
 from ispring_hints import DEFAULT_HINTS
 from speaker_diarization_resemblyzer import (
     SpeakerDiarizationResemblyzer,
@@ -437,7 +437,7 @@ async def process_audio_file(
             punctuation=options.get("punctuation", True),
             literature_text=options.get("literature", False),
             auto_upload=True,
-            # hints=DEFAULT_HINTS,  # Не поддерживается в async API
+            hints=DEFAULT_HINTS,  # Улучшенное распознавание терминов
             speaker_labeling=False,  # Yandex v2 не поддерживает, используем Resemblyzer
         )
         
