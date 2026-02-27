@@ -8,7 +8,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <meta name="version" content="2026-02-27-v2">
+    <meta name="version" content="2026-02-27-174659">
     
     <title>HearYou - Транскрибация</title>
     <style>
@@ -574,9 +574,11 @@
             }
             
             // Форматирование по спикерам или обычный текст
-            if (speakerLabeling && text.includes('Спикер ')) {
-                const speakerCount = (text.match(/Спикер \d+:/g) || []).length;
-                const uniqueSpeakers = [...new Set((text.match(/Спикер (\d+):/g) || []).map(s => s.match(/\d+/)[0]))];
+            // Поддерживаем оба формата: "SPEAKER_00:" и "Спикер 1:"
+            if (speakerLabeling && (text.includes('SPEAKER_') || text.includes('Спикер '))) {
+                const speakerPattern = /(?:SPEAKER_(\d+)|Спикер (\d+)):/g;
+                const matches = [...text.matchAll(speakerPattern)];
+                const uniqueSpeakers = [...new Set(matches.map(m => m[1] || m[2]))];
                 
                 // Легенда спикеров
                 let legend = '<div style="display: flex; gap: 15px; margin-bottom: 20px; padding: 12px; background: #f9fafb; border-radius: 8px; flex-wrap: wrap;">';
@@ -612,15 +614,16 @@
         }
         
         function formatSpeakers(text) {
-            // Разбить по "Спикер N:"
+            // Разбить по "SPEAKER_N:" или "Спикер N:"
             const lines = text.split(/\n\n/);
             let html = '';
             
             lines.forEach(line => {
-                const match = line.match(/Спикер (\d+):\s*(.+)/s);
+                // Поддерживаем оба формата: "SPEAKER_00:" и "Спикер 1:"
+                const match = line.match(/(?:SPEAKER_(\d+)|Спикер (\d+)):\s*(.+)/s);
                 if (match) {
-                    const speakerNum = match[1];
-                    const content = match[2].trim();
+                    const speakerNum = match[1] || match[2]; // берём первую захваченную группу
+                    const content = match[3].trim();
                     const speakerClass = `speaker-${speakerNum}`;
                     
                     // Номер для отображения (начинаем с 1)
@@ -666,4 +669,4 @@
     </script>
 </body>
 </html>
-<!-- HearYou v2026-02-27-v2 | Updated: 2026-02-27 17:37:58 UTC -->
+<!-- HearYou v2026-02-27-174659| Updated: 2026-02-27 17:37:58 UTC -->
