@@ -8,7 +8,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <meta name="version" content="2026-02-27-174659">
+    <meta name="version" content="2026-02-27-182514">
     
     <title>HearYou - Транскрибация</title>
     <style>
@@ -485,15 +485,14 @@
                         status.innerHTML = `<span class="success">✓ Файл загружен за ${uploadTime}с</span>`;
                         progressBar.style.display = 'block';
                         
-                        // Сохранить в историю
-                        saveToHistory(data.task_id, file.name, speakerLabeling);
+                        // НЕ сохраняем в историю здесь! Только после completed.
                         
-                        // Обновить URL
+                        // Обновить URL (но не localStorage)
                         const url = new URL(window.location);
                         url.searchParams.set('task_id', data.task_id);
                         window.history.pushState({}, '', url);
                         
-                        streamStatus(data.task_id, file.name, startTime);
+                        streamStatus(data.task_id, file.name, startTime, speakerLabeling);
                     } else {
                         throw new Error('Не получен task_id');
                     }
@@ -507,7 +506,7 @@
             }
         }
 
-        function streamStatus(taskId, filename, startTime) {
+        function streamStatus(taskId, filename, startTime, speakerLabeling) {
             const status = document.getElementById('status');
             const uploadBtn = document.getElementById('uploadBtn');
             const progressFill = document.getElementById('progressFill');
@@ -533,7 +532,6 @@
                         const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
                         
                         if (data.result) {
-                            const speakerLabeling = document.getElementById('speakerLabeling').checked;
                             showResult(data.result, filename, totalTime, speakerLabeling, taskId);
                         } else {
                             throw new Error('Результат не найден');
@@ -609,6 +607,11 @@
             resultSection.style.display = 'block';
             uploadBtn.disabled = false;
 
+            // Сохранить в историю ТОЛЬКО после успешной транскрипции
+            if (taskId && time !== '(из истории)') {
+                saveToHistory(taskId, filename, speakerLabeling);
+            }
+
             // Плавная прокрутка к результату
             setTimeout(() => resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
         }
@@ -669,4 +672,4 @@
     </script>
 </body>
 </html>
-<!-- HearYou v2026-02-27-174659| Updated: 2026-02-27 17:37:58 UTC -->
+<!-- HearYou v2026-02-27-182514| Updated: 2026-02-27 17:37:58 UTC -->
