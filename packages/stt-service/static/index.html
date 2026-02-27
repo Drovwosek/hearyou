@@ -113,40 +113,88 @@
             cursor: pointer;
         }
         .speaker-block {
-            margin: 15px 0;
-            padding: 15px;
-            background: #f9fafb;
-            border-radius: 6px;
-            border-left: 4px solid #2563eb;
+            margin: 20px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            animation: fadeIn 0.3s ease-in;
         }
-        .speaker-block.speaker-1 { border-left-color: #2563eb; }
-        .speaker-block.speaker-2 { border-left-color: #dc2626; }
-        .speaker-block.speaker-3 { border-left-color: #16a34a; }
-        .speaker-block.speaker-4 { border-left-color: #ca8a04; }
-        .speaker-block.speaker-5 { border-left-color: #9333ea; }
-        .speaker-label {
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: 8px;
-            font-size: 14px;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .speaker-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            font-size: 16px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .speaker-icon {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 8px;
+        .speaker-avatar.speaker-0 { background: #2563eb; }
+        .speaker-avatar.speaker-1 { background: #dc2626; }
+        .speaker-avatar.speaker-2 { background: #16a34a; }
+        .speaker-avatar.speaker-3 { background: #ca8a04; }
+        .speaker-avatar.speaker-4 { background: #9333ea; }
+        .speaker-content {
+            flex: 1;
+            min-width: 0;
         }
-        .speaker-icon.speaker-1 { background: #2563eb; }
-        .speaker-icon.speaker-2 { background: #dc2626; }
-        .speaker-icon.speaker-3 { background: #16a34a; }
-        .speaker-icon.speaker-4 { background: #ca8a04; }
-        .speaker-icon.speaker-5 { background: #9333ea; }
+        .speaker-label {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .speaker-label .speaker-name { color: #374151; }
+        .speaker-label .speaker-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            color: white;
+        }
+        .speaker-badge.speaker-0 { background: #2563eb; }
+        .speaker-badge.speaker-1 { background: #dc2626; }
+        .speaker-badge.speaker-2 { background: #16a34a; }
+        .speaker-badge.speaker-3 { background: #ca8a04; }
+        .speaker-badge.speaker-4 { background: #9333ea; }
+        .speaker-bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .speaker-block.speaker-0 .speaker-bubble { 
+            background: #eff6ff; 
+            border: 1px solid #dbeafe;
+        }
+        .speaker-block.speaker-1 .speaker-bubble { 
+            background: #fef2f2; 
+            border: 1px solid #fecaca;
+        }
+        .speaker-block.speaker-2 .speaker-bubble { 
+            background: #f0fdf4; 
+            border: 1px solid #bbf7d0;
+        }
+        .speaker-block.speaker-3 .speaker-bubble { 
+            background: #fefce8; 
+            border: 1px solid #fde047;
+        }
+        .speaker-block.speaker-4 .speaker-bubble { 
+            background: #faf5ff; 
+            border: 1px solid #e9d5ff;
+        }
         .speaker-text {
             color: #1f2937;
-            line-height: 1.6;
         }
         
         /* History styles */
@@ -520,7 +568,25 @@
             
             // Форматирование по спикерам или обычный текст
             if (speakerLabeling && text.includes('Спикер ')) {
-                resultText.innerHTML = formatSpeakers(text);
+                const speakerCount = (text.match(/Спикер \d+:/g) || []).length;
+                const uniqueSpeakers = [...new Set((text.match(/Спикер (\d+):/g) || []).map(s => s.match(/\d+/)[0]))];
+                
+                // Легенда спикеров
+                let legend = '<div style="display: flex; gap: 15px; margin-bottom: 20px; padding: 12px; background: #f9fafb; border-radius: 8px; flex-wrap: wrap;">';
+                uniqueSpeakers.forEach((num, idx) => {
+                    const displayNum = parseInt(num) + 1;
+                    const colors = ['#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#9333ea'];
+                    const color = colors[parseInt(num) % colors.length];
+                    legend += `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 28px; height: 28px; border-radius: 50%; background: ${color}; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px;">S${displayNum}</div>
+                            <span style="font-weight: 600; color: #374151;">Спикер ${displayNum}</span>
+                        </div>
+                    `;
+                });
+                legend += '</div>';
+                
+                resultText.innerHTML = legend + formatSpeakers(text);
             } else {
                 resultText.textContent = text;
             }
@@ -546,22 +612,30 @@
             lines.forEach(line => {
                 const match = line.match(/Спикер (\d+):\s*(.+)/s);
                 if (match) {
-                    const speaker = match[1];
+                    const speakerNum = match[1];
                     const content = match[2].trim();
-                    const speakerClass = `speaker-${speaker}`;
+                    const speakerClass = `speaker-${speakerNum}`;
+                    
+                    // Номер для отображения (начинаем с 1)
+                    const displayNum = parseInt(speakerNum) + 1;
                     
                     html += `
                         <div class="speaker-block ${speakerClass}">
-                            <div class="speaker-label">
-                                <span class="speaker-icon ${speakerClass}"></span>
-                                Спикер ${speaker}
+                            <div class="speaker-avatar ${speakerClass}">S${displayNum}</div>
+                            <div class="speaker-content">
+                                <div class="speaker-label">
+                                    <span class="speaker-name">Спикер ${displayNum}</span>
+                                    <span class="speaker-badge ${speakerClass}">S${displayNum}</span>
+                                </div>
+                                <div class="speaker-bubble">
+                                    <div class="speaker-text">${content}</div>
+                                </div>
                             </div>
-                            <div class="speaker-text">${content}</div>
                         </div>
                     `;
                 } else if (line.trim()) {
                     // Текст без спикера - показать как есть
-                    html += `<div style="margin: 10px 0; color: #6b7280;">${line}</div>`;
+                    html += `<div style="margin: 20px 0; padding: 12px; background: #f9fafb; border-radius: 6px; color: #6b7280; font-style: italic;">${line}</div>`;
                 }
             });
             
