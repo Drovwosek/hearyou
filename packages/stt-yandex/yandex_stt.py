@@ -299,6 +299,65 @@ class YandexSTT:
             time.sleep(poll_interval)
         
         raise TimeoutError(f"Operation {operation_id} did not complete within {timeout} seconds")
+    
+    def transcribe_async_with_cleanup(
+        self,
+        audio_file: str,
+        language: str = "ru-RU",
+        profanity_filter: bool = False,
+        punctuation: bool = True,
+        literature_text: bool = False,
+        timeout: int = 600,
+        poll_interval: int = 5,
+        hints: Optional[List[str]] = None,
+        speaker_labeling: bool = False,
+    ) -> Dict:
+        """
+        Полный workflow: загрузка → транскрибация → очистка
+        
+        Автоматически удаляет временный файл из Object Storage после получения результата.
+        
+        Args:
+            audio_file: Путь к аудио файлу
+            language: Язык распознавания
+            profanity_filter: Фильтровать мат
+            punctuation: Расставлять пунктуацию
+            literature_text: Литературный текст
+            timeout: Максимальное время ожидания (секунды)
+            poll_interval: Интервал проверки (секунды)
+            hints: Список подсказок для улучшения распознавания
+            speaker_labeling: Разметка спикеров (требует стерео)
+            
+        Returns:
+            Результат транскрибации
+        """
+        # Сохраняем имя файла для последующего удаления
+        object_name = Path(audio_file).name
+        
+        try:
+            # Транскрибация
+            operation_id = self.transcribe_async(
+                audio_file,
+                language=language,
+                profanity_filter=profanity_filter,
+                punctuation=punctuation,
+                literature_text=literature_text,
+                auto_upload=True,
+                hints=hints,
+                speaker_labeling=speaker_labeling,
+            )
+            
+            # Ожидание результата
+            result = self.wait_for_completion(operation_id, timeout=timeout, poll_interval=poll_interval)
+            
+            return result
+            
+        finally:
+            # Удаление файла из S3 (в любом случае - успех или ошибка)
+            try:
+                self.delete_from_storage(object_name)
+            except Exception:
+                pass  # Игнорируем ошибки удаления
 
 
 def example_usage():

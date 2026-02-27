@@ -476,6 +476,14 @@ async def process_audio_file(
             tasks_status[task_id]["progress"] = 60
             result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
         
+        # Удаляем временный файл из Object Storage
+        try:
+            object_name = Path(audio_to_send).name
+            stt.delete_from_storage(object_name)
+            logger.info(f"Task {task_id}: cleaned up S3 file {object_name}")
+        except Exception as e:
+            logger.warning(f"Task {task_id}: failed to cleanup S3 file: {e}")
+        
         # Форматирование результата
         if speaker_segments:
             # Объединяем транскрипцию со спикерами

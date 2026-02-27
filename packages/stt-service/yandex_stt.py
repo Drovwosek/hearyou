@@ -178,8 +178,6 @@ class YandexSTT:
         punctuation: bool = True,
         literature_text: bool = False,
         auto_upload: bool = True,
-        hints: Optional[List[str]] = None,
-        speaker_labeling: bool = False,
     ) -> str:
         """
         Асинхронная транскрибация (для файлов до 1 ГБ)
@@ -191,8 +189,6 @@ class YandexSTT:
             punctuation: Расставлять пунктуацию
             literature_text: Литературный текст
             auto_upload: Автоматически загружать локальные файлы в S3
-            hints: Список подсказок для улучшения точности распознавания
-            speaker_labeling: Определять спикеров (кто говорит)
             
         Returns:
             Operation ID для проверки статуса
@@ -214,8 +210,8 @@ class YandexSTT:
                     "model": "general",
                     "audioEncoding": "OGG_OPUS",
                     "sampleRateHertz": 48000,
-                    "audioChannelCount": 1,  # Моно - быстрее и дешевле
-                    "punctuation": punctuation
+                    "audioChannelCount": 1,
+                    "punctuation": punctuation,
                 }
             },
             "audio": {
@@ -226,14 +222,6 @@ class YandexSTT:
         # Литературный текст
         if literature_text:
             config["config"]["specification"]["literatureText"] = True
-        
-        # Hints (подсказки для улучшения распознавания)
-        if hints:
-            config["config"]["specification"]["phraseHints"] = hints
-        
-        # Speaker labeling (определение спикеров)
-        if speaker_labeling:
-            config["config"]["specification"]["speakerLabeling"] = True
         
         response = requests.post(
             self.async_url,
@@ -293,12 +281,12 @@ class YandexSTT:
                 if 'error' in result:
                     raise Exception(f"Transcription failed: {result['error']}")
                 
-                # Извлечь результат
+                # Извлечь текст из результата
                 response = result.get('response', {})
                 chunks = response.get('chunks', [])
                 
                 if not chunks:
-                    return {"result": "", "chunks": []}
+                    return {"result": ""}
                 
                 # Собрать весь текст
                 full_text = ' '.join([
@@ -306,15 +294,70 @@ class YandexSTT:
                     for chunk in chunks
                 ])
                 
-                # Вернуть и текст и chunks (для speaker labeling)
-                return {
-                    "result": full_text.strip(),
-                    "chunks": chunks  # Сохраняем chunks для обработки спикеров
-                }
+                return {"result": full_text.strip()}
             
             time.sleep(poll_interval)
         
         raise TimeoutError(f"Operation {operation_id} did not complete within {timeout} seconds")
+    
+    def transcribe_async_with_cleanup(
+        self,
+        audio_file: str,
+        language: str = "ru-RU",
+        profanity_filter: bool = False,
+        punctuation: bool = True,
+        literature_text: bool = False,
+        timeout: int = 600,
+        poll_interval: int = 5,
+        hints: Optional[List[str]] = None,
+        speaker_labeling: bool = False,
+    ) -> Dict:
+        """
+        Полный workflow: загрузка → транскрибация → очистка
+        
+        Автоматически удаляет временный файл из Object Storage после получения результата.
+        
+        Args:
+            audio_file: Путь к аудио файлу
+            language: Язык распознавания
+            profanity_filter: Фильтровать мат
+            punctuation: Расставлять пунктуацию
+            literature_text: Литературный текст
+            timeout: Максимальное время ожидания (секунды)
+            poll_interval: Интервал проверки (секунды)
+            hints: Список подсказок для улучшения распознавания
+            speaker_labeling: Разметка спикеров (требует стерео)
+            
+        Returns:
+            Результат транскрибации
+        """
+        # Сохраняем имя файла для последующего удаления
+        object_name = Path(audio_file).name
+        
+        try:
+            # Транскрибация
+            operation_id = self.transcribe_async(
+                audio_file,
+                language=language,
+                profanity_filter=profanity_filter,
+                punctuation=punctuation,
+                literature_text=literature_text,
+                auto_upload=True,
+                hints=hints,
+                speaker_labeling=speaker_labeling,
+            )
+            
+            # Ожидание результата
+            result = self.wait_for_completion(operation_id, timeout=timeout, poll_interval=poll_interval)
+            
+            return result
+            
+        finally:
+            # Удаление файла из S3 (в любом случае - успех или ошибка)
+            try:
+                self.delete_from_storage(object_name)
+            except Exception:
+                pass  # Игнорируем ошибки удаления
 
 
 def example_usage():
