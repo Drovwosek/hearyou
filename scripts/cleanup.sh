@@ -29,14 +29,14 @@ RESULTS_COUNT_BEFORE=$(find "$RESULTS_DIR" -type f 2>/dev/null | wc -l)
 log "Файлов в uploads до очистки: $UPLOADS_COUNT_BEFORE"
 log "Файлов в results до очистки: $RESULTS_COUNT_BEFORE"
 
-# Удалить загрузки старше 7 дней
-log "Удаление файлов из uploads старше 7 дней..."
-DELETED_UPLOADS=$(find "$UPLOAD_DIR" -type f -mtime +7 -delete -print | wc -l)
+# Удалить загрузки старше 3 дней
+log "Удаление файлов из uploads старше 3 дней..."
+DELETED_UPLOADS=$(find "$UPLOAD_DIR" -type f -mtime +3 -delete -print | wc -l)
 log "Удалено из uploads: $DELETED_UPLOADS файлов"
 
-# Удалить результаты старше 30 дней
-log "Удаление файлов из results старше 30 дней..."
-DELETED_RESULTS=$(find "$RESULTS_DIR" -type f -mtime +30 -delete -print | wc -l)
+# Удалить результаты старше 90 дней
+log "Удаление файлов из results старше 90 дней..."
+DELETED_RESULTS=$(find "$RESULTS_DIR" -type f -mtime +90 -delete -print | wc -l)
 log "Удалено из results: $DELETED_RESULTS файлов"
 
 # Подсчитать после очистки

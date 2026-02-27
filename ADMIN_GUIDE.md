@@ -159,14 +159,48 @@ du -sh /root/hearyou/packages/stt-service/results/
 
 ## Обслуживание
 
-### Очистка старых файлов
+### Автоматическая очистка старых файлов
 
+**Статус:** ✅ Настроена автоматическая очистка через cron
+
+**Расписание:** Каждые 6 часов (00:00, 06:00, 12:00, 18:00)
+
+**Скрипт:** `/root/hearyou/scripts/cleanup.sh`
+
+**Параметры очистки:**
+- `uploads/` - файлы старше **3 дней** удаляются
+- `results/` - файлы старше **90 дней** удаляются
+- Логи: `/var/log/hearyou-cleanup.log`
+
+**Проверка работы:**
 ```bash
-# Удалить загрузки старше 7 дней
-find /root/hearyou/packages/stt-service/uploads/ -type f -mtime +7 -delete
+# Посмотреть логи последней очистки
+tail -30 /var/log/hearyou-cleanup.log
 
-# Удалить результаты старше 30 дней
-find /root/hearyou/packages/stt-service/results/ -type f -mtime +30 -delete
+# Проверить расписание cron
+crontab -l | grep cleanup
+
+# Запустить вручную (для теста)
+/root/hearyou/scripts/cleanup.sh
+
+# Проверить текущий размер папок
+du -sh /root/hearyou/packages/stt-service/uploads/
+du -sh /root/hearyou/packages/stt-service/results/
+```
+
+**Мониторинг размера uploads:**
+```bash
+# Проверить не превышен ли порог 1GB
+/root/hearyou/scripts/check-disk-usage.sh
+```
+
+**Ручная очистка (если нужна срочная):**
+```bash
+# Удалить загрузки старше 3 дней
+find /root/hearyou/packages/stt-service/uploads/ -type f -mtime +3 -delete
+
+# Удалить результаты старше 90 дней
+find /root/hearyou/packages/stt-service/results/ -type f -mtime +90 -delete
 
 # Очистить логи Docker (освободить место)
 docker logs hearyou-stt --tail 0 > /dev/null 2>&1
