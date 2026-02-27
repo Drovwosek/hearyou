@@ -45,3 +45,9 @@ Thumbs.db
 *.crt
 *.key
 *.pem
+
+# Testing artifacts
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
