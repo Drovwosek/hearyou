@@ -1,0 +1,2 @@
+# Yandex SpeechKit STT requirements
+requests>=2.31.0

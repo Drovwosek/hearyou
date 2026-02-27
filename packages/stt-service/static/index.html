@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HearYou - Транскрибация</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 40px 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 30px; font-size: 28px; }
+        .upload-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        input[type="file"] { margin: 15px 0; font-size: 14px; }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover:not(:disabled) { background: #1d4ed8; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        button.secondary {
+            background: #6b7280;
+            margin-left: 10px;
+        }
+        button.secondary:hover:not(:disabled) { background: #4b5563; }
+        #status {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 3px solid #2563eb;
+            min-height: 40px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+            display: none;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2563eb, #3b82f6);
+            transition: width 0.3s;
+        }
+        .result-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .result-text {
+            white-space: pre-wrap;
+            line-height: 1.6;
+            color: #374151;
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+        .error { color: #dc2626; font-weight: 500; }
+        .success { color: #16a34a; font-weight: 500; }
+        .info { color: #2563eb; font-size: 14px; }
+        .hidden { display: none; }
+        
+        /* Speaker diarization styles */
+        .options-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+        .options-section label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 15px;
+            color: #374151;
+        }
+        .options-section input[type="checkbox"] {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .speaker-block {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 4px solid #2563eb;
+        }
+        .speaker-block.speaker-1 { border-left-color: #2563eb; }
+        .speaker-block.speaker-2 { border-left-color: #dc2626; }
+        .speaker-block.speaker-3 { border-left-color: #16a34a; }
+        .speaker-block.speaker-4 { border-left-color: #ca8a04; }
+        .speaker-block.speaker-5 { border-left-color: #9333ea; }
+        .speaker-label {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+        }
+        .speaker-icon {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .speaker-icon.speaker-1 { background: #2563eb; }
+        .speaker-icon.speaker-2 { background: #dc2626; }
+        .speaker-icon.speaker-3 { background: #16a34a; }
+        .speaker-icon.speaker-4 { background: #ca8a04; }
+        .speaker-icon.speaker-5 { background: #9333ea; }
+        .speaker-text {
+            color: #1f2937;
+            line-height: 1.6;
+        }
+        
+        /* History styles */
+        .history-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: none;
+        }
+        .history-item {
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-item:hover {
+            background: #f9fafb;
+            border-color: #2563eb;
+        }
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .history-item-name {
+            font-weight: 600;
+            color: #374151;
+        }
+        .history-item-date {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .history-item-info {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .history-empty {
+            text-align: center;
+            color: #6b7280;
+            padding: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ HearYou - Транскрибация аудио</h1>
+        
+        <div class="upload-section">
+            <input type="file" id="file" accept="audio/*,video/*">
+            
+            <div class="options-section">
+                <label>
+                    <input type="checkbox" id="speakerLabeling" name="speaker_labeling">
+                    🎭 Определить спикеров (кто говорит)
+                </label>
+            </div>
+            
+            <button id="uploadBtn" onclick="upload()">📤 Загрузить и транскрибировать</button>
+            <button class="secondary" onclick="toggleHistory()">📜 История</button>
+            
+            <div id="status">Выберите аудио или видео файл для транскрибации</div>
+            
+            <div class="progress-bar" id="progressBar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+        
+        <div class="history-section" id="historySection">
+            <div class="result-header">
+                <h2 style="font-size: 20px; color: #333;">📜 История загрузок</h2>
+                <button class="secondary" onclick="clearHistory()">🗑️ Очистить</button>
+            </div>
+            <div id="historyList"></div>
+        </div>
+        
+        <div class="result-section" id="resultSection">
+            <div class="result-header">
+                <h2 style="font-size: 20px; color: #333;">Результат транскрибации</h2>
+                <button class="secondary" onclick="copyResult()">📋 Скопировать текст</button>
+            </div>
+            <div class="result-text" id="resultText"></div>
+            <div class="info" id="resultInfo" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+
+        // История загрузок
+        function getHistory() {
+            const history = localStorage.getItem('hearyou_history');
+            return history ? JSON.parse(history) : [];
+        }
+
+        function saveToHistory(taskId, filename, speakerLabeling) {
+            const history = getHistory();
+            const item = {
+                taskId: taskId,
+                filename: filename,
+                timestamp: Date.now(),
+                speakerLabeling: speakerLabeling
+            };
+            
+            // Добавить в начало списка (самые новые сверху)
+            history.unshift(item);
+            
+            // Оставить только последние 20 записей
+            const trimmed = history.slice(0, 20);
+            
+            localStorage.setItem('hearyou_history', JSON.stringify(trimmed));
+            localStorage.setItem('hearyou_last_task', taskId);
+        }
+
+        function toggleHistory() {
+            const historySection = document.getElementById('historySection');
+            const visible = historySection.style.display !== 'none';
+            
+            if (visible) {
+                historySection.style.display = 'none';
+            } else {
+                showHistory();
+                historySection.style.display = 'block';
+            }
+        }
+
+        function showHistory() {
+            const history = getHistory();
+            const listDiv = document.getElementById('historyList');
+            
+            if (history.length === 0) {
+                listDiv.innerHTML = '<div class="history-empty">📭 История пуста</div>';
+                return;
+            }
+            
+            listDiv.innerHTML = history.map(item => {
+                const date = new Date(item.timestamp);
+                const dateStr = date.toLocaleString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                const speakerIcon = item.speakerLabeling ? '🎭 ' : '';
+                
+                return `
+                    <div class="history-item" onclick="loadFromHistory('${item.taskId}', '${item.filename}', ${item.speakerLabeling})">
+                        <div class="history-item-header">
+                            <div class="history-item-name">${speakerIcon}${item.filename}</div>
+                            <div class="history-item-date">${dateStr}</div>
+                        </div>
+                        <div class="history-item-info">ID: ${item.taskId}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function loadFromHistory(taskId, filename, speakerLabeling) {
+            const status = document.getElementById('status');
+            const resultSection = document.getElementById('resultSection');
+            const historySection = document.getElementById('historySection');
+            
+            status.innerHTML = '<span class="info">⏳ Загрузка результата из истории...</span>';
+            historySection.style.display = 'none';
+            resultSection.style.display = 'none';
+            
+            try {
+                const response = await fetch(`/result/${taskId}`);
+                
+                if (!response.ok) {
+                    throw new Error('Результат не найден (возможно, файл был удалён)');
+                }
+                
+                const data = await response.json();
+                
+                if (data.text) {
+                    showResult(data.text, filename, '(из истории)', speakerLabeling, taskId);
+                    status.innerHTML = '<span class="success">✅ Результат загружен из истории</span>';
+                    
+                    // Обновить URL
+                    const url = new URL(window.location);
+                    url.searchParams.set('task_id', taskId);
+                    window.history.pushState({}, '', url);
+                } else {
+                    throw new Error('Некорректный формат результата');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                status.innerHTML = `<span class="error">❌ ${error.message}</span>`;
+            }
+        }
+
+        function clearHistory() {
+            if (confirm('Очистить всю историю? (Сами файлы на сервере останутся)')) {
+                localStorage.removeItem('hearyou_history');
+                localStorage.removeItem('hearyou_last_task');
+                showHistory();
+            }
+        }
+
+        // При загрузке страницы - проверить URL параметр ?task_id=
+        window.addEventListener('DOMContentLoaded', function() {
+            const url = new URL(window.location);
+            const taskId = url.searchParams.get('task_id');
+            
+            if (taskId) {
+                // Попробовать загрузить из истории
+                const history = getHistory();
+                const item = history.find(h => h.taskId === taskId);
+                
+                if (item) {
+                    loadFromHistory(item.taskId, item.filename, item.speakerLabeling);
+                } else {
+                    // Попробовать загрузить с сервера даже если нет в истории
+                    loadFromHistory(taskId, 'unknown.mp3', false);
+                }
+            }
+        });
+
+        document.getElementById('file').addEventListener('change', function() {
+            if (this.files[0]) {
+                const size = (this.files[0].size / (1024 * 1024)).toFixed(2);
+                document.getElementById('status').innerHTML = 
+                    `<span class="info">Файл выбран: ${this.files[0].name} (${size} МБ)</span>`;
+            }
+        });
+
+        async function upload() {
+            const file = document.getElementById('file').files[0];
+            const status = document.getElementById('status');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const progressBar = document.getElementById('progressBar');
+            const resultSection = document.getElementById('resultSection');
+            const historySection = document.getElementById('historySection');
+            
+            if (!file) {
+                status.innerHTML = '<span class="error">⚠️ Выберите файл!</span>';
+                return;
+            }
+
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            // Старт таймера с момента нажатия кнопки
+            const startTime = Date.now();
+
+            uploadBtn.disabled = true;
+            status.innerHTML = '⏳ Загрузка файла на сервер...';
+            resultSection.style.display = 'none';
+            historySection.style.display = 'none';
+            progressBar.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('language', 'ru-RU');
+            formData.append('punctuation', 'true');
+            
+            // Speaker labeling
+            const speakerLabeling = document.getElementById('speakerLabeling').checked;
+            formData.append('speaker_labeling', speakerLabeling);
+
+            try {
+                const response = await fetch('/transcribe', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const text = await response.text();
+
+                if (response.ok) {
+                    const data = JSON.parse(text);
+                    if (data.task_id) {
+                        const uploadTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                        status.innerHTML = `<span class="success">✓ Файл загружен за ${uploadTime}с</span>`;
+                        progressBar.style.display = 'block';
+                        
+                        // Сохранить в историю
+                        saveToHistory(data.task_id, file.name, speakerLabeling);
+                        
+                        // Обновить URL
+                        const url = new URL(window.location);
+                        url.searchParams.set('task_id', data.task_id);
+                        window.history.pushState({}, '', url);
+                        
+                        streamStatus(data.task_id, file.name, startTime);
+                    } else {
+                        throw new Error('Не получен task_id');
+                    }
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${text}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                status.innerHTML = `<span class="error">❌ Ошибка: ${error.message}</span>`;
+                uploadBtn.disabled = false;
+            }
+        }
+
+        function streamStatus(taskId, filename, startTime) {
+            const status = document.getElementById('status');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const progressFill = document.getElementById('progressFill');
+
+            eventSource = new EventSource(`/status/${taskId}/stream`);
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    const progress = data.progress || 0;
+                    progressFill.style.width = progress + '%';
+
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                    status.innerHTML = `<span class="info">🔄 ${data.message || 'Обработка...'} (${elapsed}с)</span>`;
+
+                    if (data.status === 'completed') {
+                        eventSource.close();
+                        const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                        
+                        if (data.result) {
+                            const speakerLabeling = document.getElementById('speakerLabeling').checked;
+                            showResult(data.result, filename, totalTime, speakerLabeling, taskId);
+                        } else {
+                            throw new Error('Результат не найден');
+                        }
+                    } else if (data.status === 'failed' || data.status === 'error') {
+                        eventSource.close();
+                        throw new Error(data.message || 'Ошибка обработки');
+                    }
+                } catch (error) {
+                    console.error('Stream error:', error);
+                    status.innerHTML = `<span class="error">❌ ${error.message}</span>`;
+                    uploadBtn.disabled = false;
+                    if (eventSource) eventSource.close();
+                }
+            };
+
+            eventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+                status.innerHTML = '<span class="error">❌ Ошибка соединения с сервером</span>';
+                uploadBtn.disabled = false;
+                eventSource.close();
+            };
+        }
+
+        function showResult(text, filename, time, speakerLabeling, taskId) {
+            const status = document.getElementById('status');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const resultSection = document.getElementById('resultSection');
+            const resultText = document.getElementById('resultText');
+            const resultInfo = document.getElementById('resultInfo');
+            const progressBar = document.getElementById('progressBar');
+
+            status.innerHTML = `<span class="success">✅ Транскрибация завершена за ${time} секунд</span>`;
+            progressBar.style.display = 'none';
+            
+            if (!text || text.trim() === '') {
+                text = '(Речь не обнаружена. Возможно, файл содержит только музыку или фоновый шум)';
+            }
+            
+            // Форматирование по спикерам или обычный текст
+            if (speakerLabeling && text.includes('Спикер ')) {
+                resultText.innerHTML = formatSpeakers(text);
+            } else {
+                resultText.textContent = text;
+            }
+            
+            const words = text.split(/\s+/).length;
+            const chars = text.length;
+            const speakerInfo = speakerLabeling ? ' | 🎭 По ролям' : '';
+            const taskInfo = taskId ? ` | 🔗 ID: ${taskId}` : '';
+            resultInfo.textContent = `📄 Файл: ${filename} | 📊 Слов: ${words} | 📏 Символов: ${chars}${speakerInfo}${taskInfo}`;
+            
+            resultSection.style.display = 'block';
+            uploadBtn.disabled = false;
+
+            // Плавная прокрутка к результату
+            setTimeout(() => resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        }
+        
+        function formatSpeakers(text) {
+            // Разбить по "Спикер N:"
+            const lines = text.split(/\n\n/);
+            let html = '';
+            
+            lines.forEach(line => {
+                const match = line.match(/Спикер (\d+):\s*(.+)/s);
+                if (match) {
+                    const speaker = match[1];
+                    const content = match[2].trim();
+                    const speakerClass = `speaker-${speaker}`;
+                    
+                    html += `
+                        <div class="speaker-block ${speakerClass}">
+                            <div class="speaker-label">
+                                <span class="speaker-icon ${speakerClass}"></span>
+                                Спикер ${speaker}
+                            </div>
+                            <div class="speaker-text">${content}</div>
+                        </div>
+                    `;
+                } else if (line.trim()) {
+                    // Текст без спикера - показать как есть
+                    html += `<div style="margin: 10px 0; color: #6b7280;">${line}</div>`;
+                }
+            });
+            
+            return html || text;
+        }
+
+        function copyResult() {
+            const resultText = document.getElementById('resultText');
+            // Если есть HTML (спикеры), извлечь чистый текст
+            let text = resultText.textContent || resultText.innerText;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Скопировано!';
+                setTimeout(() => btn.textContent = originalText, 2000);
+            }).catch(err => {
+                alert('Ошибка копирования: ' + err);
+            });
+        }
+    </script>
+</body>
+</html>

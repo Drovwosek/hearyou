@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.*
+
+# Uploads and results (large files)
+packages/stt-service/uploads/
+packages/stt-service/results/
+packages/stt-service/temp/
+packages/stt-service/chunks/
+
+# Docker volumes
+volumes/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+
+# SSL certificates
+*.crt
+*.key
+*.pem

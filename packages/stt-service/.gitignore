@@ -1,0 +1,18 @@
+# Credentials
+.env.yandex
+
+# Data directories
+uploads/
+results/
+temp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.Python
+
+# IDE
+.vscode/
+.idea/

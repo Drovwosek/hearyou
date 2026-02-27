@@ -1,0 +1,17 @@
+# Credentials
+.env.yandex
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+
+# Test files
+test_audio.*
+test_*.py
+.tmp_*.ogg
