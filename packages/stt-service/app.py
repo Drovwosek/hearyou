@@ -37,7 +37,15 @@ sys.path.insert(0, '/root/hearyou')
 
 from core.yandex_stt import YandexSTT
 from core.text_cleaner import TranscriptionCleaner
-from core.jtbd_analyzer import JTBDAnalyzer
+
+# JTBD анализатор - опционально (требует anthropic)
+try:
+    from core.jtbd_analyzer import JTBDAnalyzer
+    JTBD_AVAILABLE = True
+except ImportError:
+    JTBD_AVAILABLE = False
+    logger.warning("JTBD Analyzer недоступен: не установлен пакет 'anthropic'")
+
 from ispring_hints import DEFAULT_HINTS
 from speaker_diarization_resemblyzer import (
     SpeakerDiarizationResemblyzer,
@@ -118,12 +126,16 @@ cleaner = TranscriptionCleaner()  # Полный пайплайн очистки
 diarizer = SpeakerDiarizationResemblyzer()  # Speaker diarization через Resemblyzer
 
 # Инициализация JTBD анализатора (с обработкой ошибок если нет API ключа)
-try:
-    jtbd_analyzer = JTBDAnalyzer()
-    logger.info("JTBD Analyzer initialized successfully")
-except ValueError as e:
-    logger.warning(f"JTBD Analyzer not initialized: {e}")
+if JTBD_AVAILABLE:
+    try:
+        jtbd_analyzer = JTBDAnalyzer()
+        logger.info("JTBD Analyzer initialized successfully")
+    except ValueError as e:
+        logger.warning(f"JTBD Analyzer not initialized: {e}")
+        jtbd_analyzer = None
+else:
     jtbd_analyzer = None
+    logger.info("JTBD Analyzer disabled (anthropic package not installed)")
 
 
 def format_with_speakers(result_data: dict) -> str:
@@ -725,7 +737,7 @@ async def complete_upload(
     literature: bool = Form(False),
     clean: bool = Form(False),
     corrections: bool = Form(True),
-    analyze_jtbd: bool = Form(True)
+    analyze_jtbd: bool = Form(False)  # JTBD отключен по умолчанию
 ):
     """
     Завершение chunked upload и запуск транскрибации
@@ -820,7 +832,7 @@ async def transcribe(
     clean: bool = Form(False),
     corrections: bool = Form(True),
     speaker_labeling: bool = Form(False),
-    analyze_jtbd: bool = Form(True),
+    analyze_jtbd: bool = Form(False),  # JTBD отключен по умолчанию
     user: str = Header(None, alias="X-User"),
     x_forwarded_for: str = Header(None, alias="X-Forwarded-For"),
     x_real_ip: str = Header(None, alias="X-Real-IP")
