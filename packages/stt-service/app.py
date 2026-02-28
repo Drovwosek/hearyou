@@ -7,11 +7,14 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Header, Requ
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 import uvicorn
 import asyncio
 import os
 import sys
 import json
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
@@ -87,6 +90,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Exception handlers для детального логирования ошибок
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"Validation error on {request.method} {request.url.path}")
+    logger.error(f"Errors: {exc.errors()}")
+    logger.error(f"Body: {exc.body if hasattr(exc, 'body') else 'N/A'}")
+    
+    # Детальный вывод каждой ошибки
+    for error in exc.errors():
+        logger.error(f"  Field: {error.get('loc')}, Type: {error.get('type')}, Msg: {error.get('msg')}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": str(exc.body) if hasattr(exc, 'body') else None
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
+    logger.error(tb.format_exc())
+    
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"}
+    )
 
 # Конфигурация
 UPLOAD_DIR = Path("uploads")
@@ -850,37 +882,51 @@ async def transcribe(
     - **analyze_jtbd**: анализировать по JTBD фреймворку (Jobs To Be Done)
     """
     
+    # 🔍 STEP 1: Получили параметры
+    logger.info(f"📥 STEP 1: Received params - file={file.filename}, language={language}, punctuation={punctuation}, literature={literature}, clean={clean}, corrections={corrections}, speaker_labeling={speaker_labeling}, analyze_jtbd={analyze_jtbd}")
+    
     # Rate limiting (защита от спама)
     # Получаем IP из headers (если за прокси) или используем заглушку
     client_ip = x_forwarded_for or x_real_ip or "direct"
+    logger.info(f"📍 STEP 2: Client IP = {client_ip}")
     if client_ip and ',' in client_ip:
         client_ip = client_ip.split(',')[0].strip()  # Первый IP из списка
     
     logger.info(f"Upload request from {client_ip}: {file.filename} ({file.content_type})")
     
+    logger.info("⏱️ STEP 3: Checking rate limit...")
     try:
         check_rate_limit(client_ip)
+        logger.info("✅ STEP 3: Rate limit OK")
     except HTTPException as e:
-        logger.warning(f"Rate limit exceeded for {client_ip}")
+        logger.warning(f"❌ STEP 3: Rate limit exceeded for {client_ip}")
         raise
     
     # Генерация task_id
+    logger.info("🔑 STEP 4: Generating task_id...")
     task_id = hashlib.md5(
         f"{file.filename}{datetime.now().isoformat()}".encode()
     ).hexdigest()[:16]
+    logger.info(f"✅ STEP 4: task_id = {task_id}")
     
     # Санитизация имени файла (защита от инъекций)
+    logger.info("🧹 STEP 5: Sanitizing filename...")
     safe_filename = sanitize_filename(file.filename)
     if file.filename != safe_filename:
-        logger.info(f"Sanitized filename: '{file.filename}' -> '{safe_filename}'")
+        logger.info(f"⚠️  Sanitized filename: '{file.filename}' -> '{safe_filename}'")
+    logger.info(f"✅ STEP 5: safe_filename = {safe_filename}")
     
     # Санитизация языкового кода
+    logger.info("🌍 STEP 6: Sanitizing language code...")
     safe_language = sanitize_language_code(language)
+    logger.info(f"✅ STEP 6: safe_language = {safe_language}")
     
     # Проверка размера файла
+    logger.info("📏 STEP 7: Checking file size...")
     file.file.seek(0, 2)  # Переместиться в конец файла
     file_size = file.file.tell()
     file.file.seek(0)  # Вернуться в начало
+    logger.info(f"✅ STEP 7: file_size = {file_size} bytes ({file_size / (1024*1024):.2f} MB)")
     
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(
@@ -889,27 +935,33 @@ async def transcribe(
         )
     
     if file_size == 0:
+        logger.error("❌ STEP 7: File is empty")
         raise HTTPException(status_code=400, detail="Файл пустой")
     
     # Сохранение файла
+    logger.info(f"💾 STEP 8: Saving file to {UPLOAD_DIR}...")
     file_path = UPLOAD_DIR / f"{task_id}_{safe_filename}"
     try:
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
+        logger.info(f"✅ STEP 8: File saved to {file_path}")
     except Exception as e:
+        logger.error(f"❌ STEP 8: Failed to save file: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
     
     # Проверка безопасности файла
+    logger.info(f"🔒 STEP 9: Validating file security...")
     try:
         validate_file_security(safe_filename, file_path)
-        logger.info(f"File validated successfully: {safe_filename}")
+        logger.info(f"✅ STEP 9: File validated successfully: {safe_filename}")
     except ValueError as e:
         # Удаляем небезопасный файл
-        logger.warning(f"File validation failed: {safe_filename}, reason: {e}")
+        logger.error(f"❌ STEP 9: File validation failed: {safe_filename}, reason: {e}")
         file_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(e))
     
     # Опции (используем санитизированный язык)
+    logger.info("⚙️ STEP 10: Creating options...")
     options = {
         "language": safe_language,
         "punctuation": punctuation,
@@ -919,8 +971,10 @@ async def transcribe(
         "speaker_labeling": speaker_labeling,
         "analyze_jtbd": analyze_jtbd,
     }
+    logger.info(f"✅ STEP 10: options = {options}")
     
     # Создание задачи (используем санитизированное имя для отображения)
+    logger.info("📋 STEP 11: Creating task status...")
     tasks_status[task_id] = {
         "status": "queued",
         "progress": 0,
@@ -928,13 +982,16 @@ async def transcribe(
         "created_at": datetime.now().isoformat(),
         "user": user or "anonymous",
     }
+    logger.info(f"✅ STEP 11: Task status created for {task_id}")
     
     # Добавление в очередь
+    logger.info("📤 STEP 12: Adding task to queue...")
     await task_queue.put({
         "file_path": file_path,
         "task_id": task_id,
         "options": options,
     })
+    logger.info(f"✅ STEP 12: Task {task_id} added to queue")
     
     return {
         "task_id": task_id,
