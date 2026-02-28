@@ -83,10 +83,19 @@ async def log_requests(request: Request, call_next):
         # Логируем ответ
         logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration:.2f}s)")
         
-        # Если 400 на /transcribe - логируем подробности
+        # Если 400 на /transcribe - логируем подробности + response body
         if response.status_code >= 400 and request.url.path == "/transcribe":
             logger.error(f"❌ HTTP {response.status_code} on /transcribe")
             logger.error(f"❌ Request took {duration:.2f}s")
+            
+            # Попытаемся прочитать response body для диагностики
+            if hasattr(response, 'body'):
+                try:
+                    body = response.body.decode('utf-8')[:500]  # первые 500 символов
+                    logger.error(f"❌ Response body: {body}")
+                except Exception as e:
+                    logger.error(f"❌ Could not read response body: {e}")
+            
             logger.error(f"❌ This suggests FastAPI rejected the request before reaching the endpoint")
             logger.error(f"❌ Possible causes: invalid Content-Type, missing required fields, or parsing error")
         
