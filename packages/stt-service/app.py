@@ -36,8 +36,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, '/root/hearyou')
 
 from core.yandex_stt import YandexSTT
-from core.stt_corrections import TranscriptionCorrector
-from core.filler_words_filter import FillerWordsFilter
+from core.text_cleaner import TranscriptionCleaner
 from ispring_hints import DEFAULT_HINTS
 from speaker_diarization_resemblyzer import (
     SpeakerDiarizationResemblyzer,
@@ -114,8 +113,7 @@ stt = YandexSTT(
     s3_secret_key=os.getenv('YANDEX_S3_SECRET_KEY'),
     s3_bucket=os.getenv('YANDEX_S3_BUCKET', 'hearyou-stt-temp')
 )
-corrector = TranscriptionCorrector()
-filler_filter = FillerWordsFilter()
+cleaner = TranscriptionCleaner()  # Полный пайплайн очистки (звуки + паразиты + артефакты)
 diarizer = SpeakerDiarizationResemblyzer()  # Speaker diarization через Resemblyzer
 
 
@@ -521,17 +519,15 @@ async def process_audio_file(
         
         tasks_status[task_id]["progress"] = 70
         
-        # Фильтрация слов-паразитов
-        if options.get("clean", False):
-            tasks_status[task_id]["message"] = "Очистка от слов-паразитов..."
-            text = filler_filter.clean(text)
-        
-        tasks_status[task_id]["progress"] = 80
-        
-        # Исправления
-        if options.get("corrections", True):
-            tasks_status[task_id]["message"] = "Применение исправлений..."
-            text = corrector.correct(text)
+        # Полная очистка текста (звуки + паразиты + артефакты)
+        if options.get("clean", False) or options.get("corrections", True):
+            tasks_status[task_id]["message"] = "Улучшение качества текста..."
+            text = cleaner.clean(
+                text,
+                remove_filler_sounds=True,  # Всегда убираем лишние звуки (эээ, ммм, бе, ме)
+                remove_filler_words=options.get("clean", False),  # Слова-паразиты (по запросу)
+                fix_artifacts=options.get("corrections", True),  # Артефакты (иишка → ИИшка)
+            )
         
         tasks_status[task_id]["progress"] = 90
         
