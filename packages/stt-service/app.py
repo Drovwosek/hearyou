@@ -74,6 +74,17 @@ async def log_requests(request: Request, call_next):
     if request.method == "POST" and request.url.path == "/transcribe":
         logger.info(f"🔍 Content-Type: {request.headers.get('content-type')}")
         logger.info(f"🔍 Content-Length: {request.headers.get('content-length')}")
+        
+        # Логируем начало body для диагностики (первые 500 байт)
+        try:
+            body = await request.body()
+            logger.info(f"🔍 Body preview (first 500 bytes): {body[:500]}")
+            # Важно: пересоздаём request с тем же body, т.к. body можно прочитать только раз
+            async def receive():
+                return {"type": "http.request", "body": body}
+            request._receive = receive
+        except Exception as e:
+            logger.error(f"Failed to read request body: {e}")
     
     try:
         response = await call_next(request)
