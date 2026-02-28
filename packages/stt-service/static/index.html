@@ -686,18 +686,18 @@
             const formData = new FormData();
             formData.append('file', file);
             formData.append('language', 'ru-RU');
-            formData.append('punctuation', true);
-            formData.append('literature', false);
-            formData.append('clean', false);
-            formData.append('corrections', true);
+            formData.append('punctuation', 'true');
+            formData.append('literature', 'false');
+            formData.append('clean', 'false');
+            formData.append('corrections', 'true');
             
             // Speaker labeling
             const speakerLabeling = document.getElementById('speakerLabeling').checked;
-            formData.append('speaker_labeling', speakerLabeling);
+            formData.append('speaker_labeling', speakerLabeling ? 'true' : 'false');
             
             // JTBD Analysis
             const jtbdAnalysis = document.getElementById('jtbdAnalysis').checked;
-            formData.append('analyze_jtbd', jtbdAnalysis);
+            formData.append('analyze_jtbd', jtbdAnalysis ? 'true' : 'false');
 
             try {
                 const response = await fetch('/transcribe', {
