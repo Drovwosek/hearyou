@@ -70,6 +70,11 @@ async def log_requests(request: Request, call_next):
     # Логируем входящий запрос
     logger.info(f"{request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
     
+    # Логируем заголовки для POST запросов
+    if request.method == "POST" and request.url.path == "/transcribe":
+        logger.info(f"🔍 Request headers: Content-Type={request.headers.get('content-type')}")
+        logger.info(f"🔍 Request query params: {dict(request.query_params)}")
+    
     try:
         response = await call_next(request)
         duration = time.time() - start_time
@@ -77,9 +82,14 @@ async def log_requests(request: Request, call_next):
         # Логируем ответ
         logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration:.2f}s)")
         
+        # Если 400 на /transcribe - это валидация
+        if response.status_code == 400 and request.url.path == "/transcribe":
+            logger.error(f"⚠️ 400 Bad Request on /transcribe - likely validation error")
+        
         return response
     except Exception as e:
         logger.error(f"{request.method} {request.url.path} failed: {e}")
+        logger.error(tb.format_exc())
         raise
 
 # CORS для доступа из браузера
@@ -94,13 +104,15 @@ app.add_middleware(
 # Exception handlers для детального логирования ошибок
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    logger.error(f"Validation error on {request.method} {request.url.path}")
-    logger.error(f"Errors: {exc.errors()}")
-    logger.error(f"Body: {exc.body if hasattr(exc, 'body') else 'N/A'}")
+    logger.error(f"❌ VALIDATION ERROR on {request.method} {request.url.path}")
+    logger.error(f"❌ Client: {request.client.host if request.client else 'unknown'}")
+    logger.error(f"❌ Content-Type: {request.headers.get('content-type')}")
+    logger.error(f"❌ Errors: {exc.errors()}")
+    logger.error(f"❌ Body: {exc.body if hasattr(exc, 'body') else 'N/A'}")
     
     # Детальный вывод каждой ошибки
-    for error in exc.errors():
-        logger.error(f"  Field: {error.get('loc')}, Type: {error.get('type')}, Msg: {error.get('msg')}")
+    for i, error in enumerate(exc.errors(), 1):
+        logger.error(f"  ❌ Error {i}: Field={error.get('loc')}, Type={error.get('type')}, Msg={error.get('msg')}, Input={error.get('input')}")
     
     return JSONResponse(
         status_code=422,
