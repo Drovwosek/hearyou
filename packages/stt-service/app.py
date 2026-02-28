@@ -37,6 +37,7 @@ sys.path.insert(0, '/root/hearyou')
 
 from core.yandex_stt import YandexSTT
 from core.text_cleaner import TranscriptionCleaner
+from core.jtbd_analyzer import JTBDAnalyzer
 from ispring_hints import DEFAULT_HINTS
 from speaker_diarization_resemblyzer import (
     SpeakerDiarizationResemblyzer,
@@ -115,6 +116,14 @@ stt = YandexSTT(
 )
 cleaner = TranscriptionCleaner()  # Полный пайплайн очистки (звуки + паразиты + артефакты)
 diarizer = SpeakerDiarizationResemblyzer()  # Speaker diarization через Resemblyzer
+
+# Инициализация JTBD анализатора (с обработкой ошибок если нет API ключа)
+try:
+    jtbd_analyzer = JTBDAnalyzer()
+    logger.info("JTBD Analyzer initialized successfully")
+except ValueError as e:
+    logger.warning(f"JTBD Analyzer not initialized: {e}")
+    jtbd_analyzer = None
 
 
 def format_with_speakers(result_data: dict) -> str:
@@ -531,6 +540,30 @@ async def process_audio_file(
         
         tasks_status[task_id]["progress"] = 90
         
+        # JTBD анализ (если включен)
+        jtbd_result = None
+        if options.get("analyze_jtbd", True) and jtbd_analyzer:
+            try:
+                tasks_status[task_id]["message"] = "JTBD анализ..."
+                tasks_status[task_id]["progress"] = 92
+                
+                logger.info(f"Task {task_id}: starting JTBD analysis")
+                jtbd_result = jtbd_analyzer.analyze(text)
+                
+                logger.info(
+                    f"Task {task_id}: JTBD analysis completed, "
+                    f"{jtbd_result['metadata']['total_elements']} elements found"
+                )
+            except Exception as e:
+                logger.error(f"Task {task_id}: JTBD analysis failed: {e}")
+                jtbd_result = {
+                    "error": str(e),
+                    "jobs": [], "pains": [], "gains": [], "context": [], "triggers": [],
+                    "summary": f"Ошибка анализа: {str(e)}"
+                }
+        
+        tasks_status[task_id]["progress"] = 95
+        
         # Сохранение результата
         result_file = RESULTS_DIR / f"{task_id}.json"
         result_data = {
@@ -540,6 +573,7 @@ async def process_audio_file(
             "timestamp": datetime.now().isoformat(),
             "options": options,
             "raw_result": result,
+            "jtbd": jtbd_result,
         }
         
         with open(result_file, 'w', encoding='utf-8') as f:
@@ -690,7 +724,8 @@ async def complete_upload(
     punctuation: bool = Form(True),
     literature: bool = Form(False),
     clean: bool = Form(False),
-    corrections: bool = Form(True)
+    corrections: bool = Form(True),
+    analyze_jtbd: bool = Form(True)
 ):
     """
     Завершение chunked upload и запуск транскрибации
@@ -750,6 +785,7 @@ async def complete_upload(
         "literature": literature,
         "clean": clean,
         "corrections": corrections,
+        "analyze_jtbd": analyze_jtbd,
     }
     
     tasks_status[task_id] = {
@@ -784,6 +820,7 @@ async def transcribe(
     clean: bool = Form(False),
     corrections: bool = Form(True),
     speaker_labeling: bool = Form(False),
+    analyze_jtbd: bool = Form(True),
     user: str = Header(None, alias="X-User"),
     x_forwarded_for: str = Header(None, alias="X-Forwarded-For"),
     x_real_ip: str = Header(None, alias="X-Real-IP")
@@ -798,6 +835,7 @@ async def transcribe(
     - **literature**: литературный текст (Yandex фильтр)
     - **clean**: убрать слова-паразиты
     - **corrections**: применять исправления
+    - **analyze_jtbd**: анализировать по JTBD фреймворку (Jobs To Be Done)
     """
     
     # Rate limiting (защита от спама)
@@ -867,6 +905,7 @@ async def transcribe(
         "clean": clean,
         "corrections": corrections,
         "speaker_labeling": speaker_labeling,
+        "analyze_jtbd": analyze_jtbd,
     }
     
     # Создание задачи (используем санитизированное имя для отображения)

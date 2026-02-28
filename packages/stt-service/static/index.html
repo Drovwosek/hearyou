@@ -8,7 +8,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <meta name="version" content="2026-02-27-182514">
+    <meta name="version" content="2026-02-28-071200">
     
     <title>HearYou - Транскрибация</title>
     <style>
@@ -112,6 +112,10 @@
             cursor: pointer;
             font-size: 15px;
             color: #374151;
+            margin-bottom: 8px;
+        }
+        .options-section label:last-child {
+            margin-bottom: 0;
         }
         .options-section input[type="checkbox"] {
             margin-right: 10px;
@@ -248,6 +252,204 @@
             color: #6b7280;
             padding: 30px;
         }
+        
+        /* ============================================ */
+        /* JTBD ANALYSIS STYLES */
+        /* ============================================ */
+        .jtbd-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .jtbd-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .jtbd-header h2 {
+            font-size: 22px;
+            color: #1f2937;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .jtbd-category {
+            margin-bottom: 25px;
+            animation: fadeIn 0.4s ease-in;
+        }
+        
+        .jtbd-category:last-child {
+            margin-bottom: 0;
+        }
+        
+        .jtbd-category-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            border-radius: 8px;
+            border-left: 4px solid #2563eb;
+        }
+        
+        .jtbd-category-header.jobs { border-left-color: #2563eb; }
+        .jtbd-category-header.pains { border-left-color: #dc2626; }
+        .jtbd-category-header.gains { border-left-color: #16a34a; }
+        .jtbd-category-header.context { border-left-color: #ca8a04; }
+        .jtbd-category-header.triggers { border-left-color: #9333ea; }
+        
+        .jtbd-category-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+        
+        .jtbd-category-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+            flex: 1;
+        }
+        
+        .jtbd-category-count {
+            background: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .jtbd-items {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .jtbd-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            transition: all 0.2s;
+        }
+        
+        .jtbd-item:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+            transform: translateX(4px);
+        }
+        
+        .jtbd-item-bullet {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-top: 8px;
+            flex-shrink: 0;
+        }
+        
+        .jtbd-category.jobs .jtbd-item-bullet { background: #2563eb; }
+        .jtbd-category.pains .jtbd-item-bullet { background: #dc2626; }
+        .jtbd-category.gains .jtbd-item-bullet { background: #16a34a; }
+        .jtbd-category.context .jtbd-item-bullet { background: #ca8a04; }
+        .jtbd-category.triggers .jtbd-item-bullet { background: #9333ea; }
+        
+        .jtbd-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .jtbd-item-text {
+            color: #1f2937;
+            line-height: 1.6;
+            font-size: 15px;
+            margin-bottom: 6px;
+        }
+        
+        .jtbd-item-confidence {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .jtbd-confidence-bar {
+            width: 60px;
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .jtbd-confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            transition: width 0.3s ease;
+        }
+        
+        .jtbd-confidence-fill.high { background: linear-gradient(90deg, #10b981, #16a34a); }
+        .jtbd-confidence-fill.medium { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .jtbd-confidence-fill.low { background: linear-gradient(90deg, #ef4444, #dc2626); }
+        
+        .jtbd-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+        
+        .jtbd-empty-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        
+        .jtbd-empty-text {
+            font-size: 16px;
+            color: #6b7280;
+        }
+        
+        /* Results layout with JTBD */
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        @media (min-width: 1200px) {
+            .results-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .container {
+                max-width: 1400px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .jtbd-category-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .jtbd-category-count {
+                align-self: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
@@ -261,6 +463,10 @@
                 <label>
                     <input type="checkbox" id="speakerLabeling" name="speaker_labeling">
                     🎭 Определить спикеров (кто говорит)
+                </label>
+                <label>
+                    <input type="checkbox" id="jtbdAnalysis" name="jtbd_analysis">
+                    🎯 JTBD анализ (Jobs-to-be-Done)
                 </label>
             </div>
             
@@ -282,13 +488,23 @@
             <div id="historyList"></div>
         </div>
         
-        <div class="result-section" id="resultSection">
-            <div class="result-header">
-                <h2 style="font-size: 20px; color: #333;">Результат транскрибации</h2>
-                <button class="secondary" onclick="copyResult()">📋 Скопировать текст</button>
+        <div class="results-grid" id="resultsGrid">
+            <div class="result-section" id="resultSection">
+                <div class="result-header">
+                    <h2 style="font-size: 20px; color: #333;">Результат транскрибации</h2>
+                    <button class="secondary" onclick="copyResult()">📋 Скопировать текст</button>
+                </div>
+                <div class="result-text" id="resultText"></div>
+                <div class="info" id="resultInfo" style="margin-top: 15px;"></div>
             </div>
-            <div class="result-text" id="resultText"></div>
-            <div class="info" id="resultInfo" style="margin-top: 15px;"></div>
+            
+            <div class="jtbd-section" id="jtbdSection">
+                <div class="jtbd-header">
+                    <h2>🎯 JTBD Анализ</h2>
+                    <button class="secondary" onclick="copyJTBD()">📋 Скопировать</button>
+                </div>
+                <div id="jtbdContent"></div>
+            </div>
         </div>
     </div>
 
@@ -301,13 +517,14 @@
             return history ? JSON.parse(history) : [];
         }
 
-        function saveToHistory(taskId, filename, speakerLabeling) {
+        function saveToHistory(taskId, filename, speakerLabeling, jtbdAnalysis) {
             const history = getHistory();
             const item = {
                 taskId: taskId,
                 filename: filename,
                 timestamp: Date.now(),
-                speakerLabeling: speakerLabeling
+                speakerLabeling: speakerLabeling,
+                jtbdAnalysis: jtbdAnalysis
             };
             
             // Добавить в начало списка (самые новые сверху)
@@ -352,11 +569,12 @@
                 });
                 
                 const speakerIcon = item.speakerLabeling ? '🎭 ' : '';
+                const jtbdIcon = item.jtbdAnalysis ? '🎯 ' : '';
                 
                 return `
-                    <div class="history-item" onclick="loadFromHistory('${item.taskId}', '${item.filename}', ${item.speakerLabeling})">
+                    <div class="history-item" onclick="loadFromHistory('${item.taskId}', '${item.filename}', ${item.speakerLabeling}, ${item.jtbdAnalysis})">
                         <div class="history-item-header">
-                            <div class="history-item-name">${speakerIcon}${item.filename}</div>
+                            <div class="history-item-name">${speakerIcon}${jtbdIcon}${item.filename}</div>
                             <div class="history-item-date">${dateStr}</div>
                         </div>
                         <div class="history-item-info">ID: ${item.taskId}</div>
@@ -365,14 +583,16 @@
             }).join('');
         }
 
-        async function loadFromHistory(taskId, filename, speakerLabeling) {
+        async function loadFromHistory(taskId, filename, speakerLabeling, jtbdAnalysis) {
             const status = document.getElementById('status');
             const resultSection = document.getElementById('resultSection');
+            const jtbdSection = document.getElementById('jtbdSection');
             const historySection = document.getElementById('historySection');
             
             status.innerHTML = '<span class="info">⏳ Загрузка результата из истории...</span>';
             historySection.style.display = 'none';
             resultSection.style.display = 'none';
+            jtbdSection.style.display = 'none';
             
             try {
                 const response = await fetch(`/result/${taskId}`);
@@ -384,7 +604,7 @@
                 const data = await response.json();
                 
                 if (data.text) {
-                    showResult(data.text, filename, '(из истории)', speakerLabeling, taskId);
+                    showResult(data.text, filename, '(из истории)', speakerLabeling, jtbdAnalysis, taskId, data.jtbd);
                     status.innerHTML = '<span class="success">✅ Результат загружен из истории</span>';
                     
                     // Обновить URL
@@ -419,10 +639,10 @@
                 const item = history.find(h => h.taskId === taskId);
                 
                 if (item) {
-                    loadFromHistory(item.taskId, item.filename, item.speakerLabeling);
+                    loadFromHistory(item.taskId, item.filename, item.speakerLabeling, item.jtbdAnalysis);
                 } else {
                     // Попробовать загрузить с сервера даже если нет в истории
-                    loadFromHistory(taskId, 'unknown.mp3', false);
+                    loadFromHistory(taskId, 'unknown.mp3', false, false);
                 }
             }
         });
@@ -441,6 +661,7 @@
             const uploadBtn = document.getElementById('uploadBtn');
             const progressBar = document.getElementById('progressBar');
             const resultSection = document.getElementById('resultSection');
+            const jtbdSection = document.getElementById('jtbdSection');
             const historySection = document.getElementById('historySection');
             
             if (!file) {
@@ -458,6 +679,7 @@
             uploadBtn.disabled = true;
             status.innerHTML = '⏳ Загрузка файла на сервер...';
             resultSection.style.display = 'none';
+            jtbdSection.style.display = 'none';
             historySection.style.display = 'none';
             progressBar.style.display = 'none';
 
@@ -469,6 +691,10 @@
             // Speaker labeling
             const speakerLabeling = document.getElementById('speakerLabeling').checked;
             formData.append('speaker_labeling', speakerLabeling);
+            
+            // JTBD Analysis
+            const jtbdAnalysis = document.getElementById('jtbdAnalysis').checked;
+            formData.append('jtbd_analysis', jtbdAnalysis);
 
             try {
                 const response = await fetch('/transcribe', {
@@ -485,14 +711,12 @@
                         status.innerHTML = `<span class="success">✓ Файл загружен за ${uploadTime}с</span>`;
                         progressBar.style.display = 'block';
                         
-                        // НЕ сохраняем в историю здесь! Только после completed.
-                        
                         // Обновить URL (но не localStorage)
                         const url = new URL(window.location);
                         url.searchParams.set('task_id', data.task_id);
                         window.history.pushState({}, '', url);
                         
-                        streamStatus(data.task_id, file.name, startTime, speakerLabeling);
+                        streamStatus(data.task_id, file.name, startTime, speakerLabeling, jtbdAnalysis);
                     } else {
                         throw new Error('Не получен task_id');
                     }
@@ -506,7 +730,7 @@
             }
         }
 
-        function streamStatus(taskId, filename, startTime, speakerLabeling) {
+        function streamStatus(taskId, filename, startTime, speakerLabeling, jtbdAnalysis) {
             const status = document.getElementById('status');
             const uploadBtn = document.getElementById('uploadBtn');
             const progressFill = document.getElementById('progressFill');
@@ -532,7 +756,7 @@
                         const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
                         
                         if (data.result) {
-                            showResult(data.result, filename, totalTime, speakerLabeling, taskId);
+                            showResult(data.result, filename, totalTime, speakerLabeling, jtbdAnalysis, taskId, data.jtbd);
                         } else {
                             throw new Error('Результат не найден');
                         }
@@ -556,10 +780,11 @@
             };
         }
 
-        function showResult(text, filename, time, speakerLabeling, taskId) {
+        function showResult(text, filename, time, speakerLabeling, jtbdAnalysis, taskId, jtbdData) {
             const status = document.getElementById('status');
             const uploadBtn = document.getElementById('uploadBtn');
             const resultSection = document.getElementById('resultSection');
+            const jtbdSection = document.getElementById('jtbdSection');
             const resultText = document.getElementById('resultText');
             const resultInfo = document.getElementById('resultInfo');
             const progressBar = document.getElementById('progressBar');
@@ -572,7 +797,6 @@
             }
             
             // Форматирование по спикерам или обычный текст
-            // Поддерживаем оба формата: "SPEAKER_00:" и "Спикер 1:"
             if (speakerLabeling && (text.includes('SPEAKER_') || text.includes('Спикер '))) {
                 const speakerPattern = /(?:SPEAKER_(\d+)|Спикер (\d+)):/g;
                 const matches = [...text.matchAll(speakerPattern)];
@@ -601,15 +825,23 @@
             const words = text.split(/\s+/).length;
             const chars = text.length;
             const speakerInfo = speakerLabeling ? ' | 🎭 По ролям' : '';
+            const jtbdInfo = jtbdAnalysis ? ' | 🎯 JTBD' : '';
             const taskInfo = taskId ? ` | 🔗 ID: ${taskId}` : '';
-            resultInfo.textContent = `📄 Файл: ${filename} | 📊 Слов: ${words} | 📏 Символов: ${chars}${speakerInfo}${taskInfo}`;
+            resultInfo.textContent = `📄 Файл: ${filename} | 📊 Слов: ${words} | 📏 Символов: ${chars}${speakerInfo}${jtbdInfo}${taskInfo}`;
             
             resultSection.style.display = 'block';
+            
+            // Show JTBD results if available
+            if (jtbdAnalysis && jtbdData) {
+                showJTBD(jtbdData);
+                jtbdSection.style.display = 'block';
+            }
+            
             uploadBtn.disabled = false;
 
             // Сохранить в историю ТОЛЬКО после успешной транскрипции
             if (taskId && time !== '(из истории)') {
-                saveToHistory(taskId, filename, speakerLabeling);
+                saveToHistory(taskId, filename, speakerLabeling, jtbdAnalysis);
             }
 
             // Плавная прокрутка к результату
@@ -622,14 +854,12 @@
             let html = '';
             
             lines.forEach(line => {
-                // Поддерживаем оба формата: "SPEAKER_00:" и "Спикер 1:"
                 const match = line.match(/(?:SPEAKER_(\d+)|Спикер (\d+)):\s*(.+)/s);
                 if (match) {
-                    const speakerNum = match[1] || match[2]; // берём первую захваченную группу
+                    const speakerNum = match[1] || match[2];
                     const content = match[3].trim();
                     const speakerClass = `speaker-${speakerNum}`;
                     
-                    // Номер для отображения (начинаем с 1)
                     const displayNum = parseInt(speakerNum) + 1;
                     
                     html += `
@@ -647,18 +877,124 @@
                         </div>
                     `;
                 } else if (line.trim()) {
-                    // Текст без спикера - показать как есть
                     html += `<div style="margin: 20px 0; padding: 12px; background: #f9fafb; border-radius: 6px; color: #6b7280; font-style: italic;">${line}</div>`;
                 }
             });
             
             return html || text;
         }
+        
+        function showJTBD(jtbdData) {
+            const jtbdContent = document.getElementById('jtbdContent');
+            
+            if (!jtbdData || Object.keys(jtbdData).length === 0) {
+                jtbdContent.innerHTML = `
+                    <div class="jtbd-empty">
+                        <div class="jtbd-empty-icon">🤔</div>
+                        <div class="jtbd-empty-text">JTBD анализ не выполнен или не найден</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const categories = [
+                { key: 'jobs', title: 'Работы (Jobs)', icon: '🎯', description: 'Что клиент пытается выполнить' },
+                { key: 'pains', title: 'Боли (Pains)', icon: '😖', description: 'Проблемы и препятствия' },
+                { key: 'gains', title: 'Выгоды (Gains)', icon: '🎁', description: 'Желаемые результаты' },
+                { key: 'context', title: 'Контекст', icon: '📍', description: 'Обстоятельства использования' },
+                { key: 'triggers', title: 'Триггеры', icon: '⚡', description: 'Что запускает потребность' }
+            ];
+            
+            let html = '';
+            
+            categories.forEach(category => {
+                const items = jtbdData[category.key] || [];
+                
+                if (items.length === 0) return;
+                
+                html += `
+                    <div class="jtbd-category ${category.key}">
+                        <div class="jtbd-category-header ${category.key}">
+                            <div class="jtbd-category-icon">${category.icon}</div>
+                            <div class="jtbd-category-title">${category.title}</div>
+                            <div class="jtbd-category-count">${items.length}</div>
+                        </div>
+                        <div class="jtbd-items">
+                            ${items.map(item => {
+                                const confidence = item.confidence || 0;
+                                const confidencePercent = Math.round(confidence * 100);
+                                let confidenceClass = 'medium';
+                                if (confidence >= 0.8) confidenceClass = 'high';
+                                else if (confidence < 0.5) confidenceClass = 'low';
+                                
+                                return `
+                                    <div class="jtbd-item">
+                                        <div class="jtbd-item-bullet"></div>
+                                        <div class="jtbd-item-content">
+                                            <div class="jtbd-item-text">${item.text}</div>
+                                            <div class="jtbd-item-confidence">
+                                                <div class="jtbd-confidence-bar">
+                                                    <div class="jtbd-confidence-fill ${confidenceClass}" style="width: ${confidencePercent}%"></div>
+                                                </div>
+                                                <span>${confidencePercent}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (html === '') {
+                html = `
+                    <div class="jtbd-empty">
+                        <div class="jtbd-empty-icon">📭</div>
+                        <div class="jtbd-empty-text">Нет данных для отображения</div>
+                    </div>
+                `;
+            }
+            
+            jtbdContent.innerHTML = html;
+        }
 
         function copyResult() {
             const resultText = document.getElementById('resultText');
-            // Если есть HTML (спикеры), извлечь чистый текст
             let text = resultText.textContent || resultText.innerText;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Скопировано!';
+                setTimeout(() => btn.textContent = originalText, 2000);
+            }).catch(err => {
+                alert('Ошибка копирования: ' + err);
+            });
+        }
+        
+        function copyJTBD() {
+            const jtbdContent = document.getElementById('jtbdContent');
+            
+            // Формируем текстовую версию JTBD
+            let text = '🎯 JTBD АНАЛИЗ\n\n';
+            
+            const categories = jtbdContent.querySelectorAll('.jtbd-category');
+            categories.forEach(category => {
+                const title = category.querySelector('.jtbd-category-title').textContent;
+                const icon = category.querySelector('.jtbd-category-icon').textContent;
+                text += `${icon} ${title}\n`;
+                text += '─'.repeat(40) + '\n';
+                
+                const items = category.querySelectorAll('.jtbd-item');
+                items.forEach((item, idx) => {
+                    const itemText = item.querySelector('.jtbd-item-text').textContent;
+                    const confidence = item.querySelector('.jtbd-item-confidence span').textContent;
+                    text += `${idx + 1}. ${itemText} [${confidence}]\n`;
+                });
+                
+                text += '\n';
+            });
             
             navigator.clipboard.writeText(text).then(() => {
                 const btn = event.target;
@@ -672,4 +1008,4 @@
     </script>
 </body>
 </html>
-<!-- HearYou v2026-02-27-182514| Updated: 2026-02-27 17:37:58 UTC -->
+<!-- HearYou v2026-02-28-071200 | Updated: 2026-02-28 07:12 UTC -->
