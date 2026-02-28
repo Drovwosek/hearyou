@@ -110,24 +110,41 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     logger.error(f"❌ VALIDATION ERROR on {request.method} {request.url.path}")
     logger.error(f"❌ Client: {request.client.host if request.client else 'unknown'}")
     logger.error(f"❌ Content-Type: {request.headers.get('content-type')}")
-    logger.error(f"❌ Errors: {exc.errors()}")
-    logger.error(f"❌ Body: {exc.body if hasattr(exc, 'body') else 'N/A'}")
+    logger.error(f"❌ Errors count: {len(exc.errors())}")
     
     # Детальный вывод каждой ошибки
     for i, error in enumerate(exc.errors(), 1):
-        logger.error(f"  ❌ Error {i}: Field={error.get('loc')}, Type={error.get('type')}, Msg={error.get('msg')}, Input={error.get('input')}")
+        loc = ' -> '.join(str(x) for x in error.get('loc', []))
+        logger.error(f"  ❌ Error {i}:")
+        logger.error(f"     Location: {loc}")
+        logger.error(f"     Type: {error.get('type')}")
+        logger.error(f"     Message: {error.get('msg')}")
+        if 'input' in error:
+            input_str = str(error.get('input'))[:100]  # первые 100 символов
+            logger.error(f"     Input: {input_str}")
     
     return JSONResponse(
         status_code=422,
         content={
             "detail": exc.errors(),
-            "body": str(exc.body) if hasattr(exc, 'body') else None
+            "message": "Validation failed - check server logs for details"
         }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    logger.error(f"❌ HTTP Exception {exc.status_code} on {request.method} {request.url.path}")
+    logger.error(f"❌ Detail: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
     )
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
+    logger.error(f"❌ Unhandled exception on {request.method} {request.url.path}: {type(exc).__name__}")
+    logger.error(f"❌ Message: {str(exc)}")
+    logger.error(f"❌ Traceback:")
     logger.error(tb.format_exc())
     
     return JSONResponse(
@@ -869,6 +886,12 @@ async def complete_upload(
         "message": "Файл загружен и добавлен в очередь"
     }
 
+
+@app.post("/test-upload")
+async def test_upload(file: UploadFile = File(...)):
+    """Минимальный тест - принимает только файл"""
+    logger.info(f"🧪 TEST: Received file={file.filename}, size={file.size}, content_type={file.content_type}")
+    return {"status": "ok", "filename": file.filename, "content_type": file.content_type}
 
 @app.post("/transcribe")
 async def transcribe(
