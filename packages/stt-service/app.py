@@ -514,6 +514,7 @@ async def process_audio_file(
         logger.info(f"Starting async transcription for task {task_id}")
         
         # Запускаем Yandex STT
+        # speaker_labeling не поддерживается в transcribe_async - используем Resemblyzer отдельно
         operation_id = stt.transcribe_async(
             str(audio_to_send),
             language=options.get("language", "ru-RU"),
@@ -521,7 +522,6 @@ async def process_audio_file(
             literature_text=options.get("literature", False),
             auto_upload=True,
             # hints=DEFAULT_HINTS,  # Не поддерживается в async API
-            speaker_labeling=False,  # Yandex v2 не поддерживает, используем Resemblyzer
         )
         
         logger.info(f"Task {task_id}: operation_id = {operation_id}")
