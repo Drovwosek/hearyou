@@ -67,13 +67,8 @@ app = FastAPI(
 async def log_requests(request: Request, call_next):
     start_time = time.time()
     
-    # Логируем входящий запрос
+    # Логируем входящий запрос (минимально)
     logger.info(f"{request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
-    
-    # Логируем заголовки для POST запросов
-    if request.method == "POST" and request.url.path == "/transcribe":
-        logger.info(f"🔍 Request headers: Content-Type={request.headers.get('content-type')}")
-        logger.info(f"🔍 Request query params: {dict(request.query_params)}")
     
     try:
         response = await call_next(request)
@@ -81,10 +76,6 @@ async def log_requests(request: Request, call_next):
         
         # Логируем ответ
         logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration:.2f}s)")
-        
-        # Если 400 на /transcribe - это валидация
-        if response.status_code == 400 and request.url.path == "/transcribe":
-            logger.error(f"⚠️ 400 Bad Request on /transcribe - likely validation error")
         
         return response
     except Exception as e:
