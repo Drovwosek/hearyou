@@ -439,15 +439,199 @@
             }
         }
         
+        /* ============================================ */
+        /* RESPONSIVE DESIGN                            */
+        /* ============================================ */
+
+        /* Tablets (768px - 1199px) */
+        @media (max-width: 1199px) {
+            .container {
+                max-width: 100%;
+                padding: 0 16px;
+            }
+        }
+
+        /* Mobile (< 768px) */
         @media (max-width: 768px) {
+            body {
+                padding: 20px 12px;
+            }
+
+            h1 {
+                font-size: 22px;
+                margin-bottom: 20px;
+            }
+
+            .upload-section,
+            .result-section,
+            .history-section,
+            .jtbd-section {
+                padding: 20px 16px;
+            }
+
+            /* Buttons stacking */
+            .upload-section > button {
+                display: block;
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            button.secondary {
+                margin-left: 0;
+                display: block;
+                width: 100%;
+            }
+
+            /* File input */
+            input[type="file"] {
+                width: 100%;
+                font-size: 13px;
+            }
+
+            /* Options section */
+            .options-section {
+                padding: 12px;
+            }
+            .options-section label {
+                font-size: 14px;
+            }
+
+            /* Result header stacking */
+            .result-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            .result-header button.secondary {
+                width: auto;
+                display: inline-block;
+            }
+
+            /* Result text */
+            .result-text {
+                font-size: 14px;
+                padding: 12px;
+                max-height: 400px;
+            }
+
+            /* Speaker blocks */
+            .speaker-block {
+                gap: 8px;
+            }
+            .speaker-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 13px;
+            }
+            .speaker-bubble {
+                padding: 10px 12px;
+            }
+            .speaker-label {
+                font-size: 12px;
+            }
+
+            /* JTBD */
+            .jtbd-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            .jtbd-header h2 {
+                font-size: 18px;
+            }
+            .jtbd-header button.secondary {
+                width: auto;
+                display: inline-block;
+            }
             .jtbd-category-header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 8px;
+                padding: 10px 12px;
             }
-            
+            .jtbd-category-title {
+                font-size: 16px;
+            }
             .jtbd-category-count {
                 align-self: flex-start;
+            }
+            .jtbd-item {
+                padding: 12px;
+            }
+            .jtbd-item-text {
+                font-size: 14px;
+            }
+
+            /* History items */
+            .history-item {
+                padding: 12px;
+            }
+            .history-item-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+            .history-item-name {
+                font-size: 14px;
+                word-break: break-all;
+            }
+
+            /* Info line */
+            #resultInfo {
+                font-size: 12px;
+                line-height: 1.8;
+            }
+        }
+
+        /* Small phones (< 480px) */
+        @media (max-width: 480px) {
+            body {
+                padding: 12px 8px;
+            }
+
+            h1 {
+                font-size: 18px;
+                margin-bottom: 16px;
+            }
+
+            .upload-section,
+            .result-section,
+            .history-section,
+            .jtbd-section {
+                padding: 16px 12px;
+                border-radius: 6px;
+            }
+
+            button {
+                padding: 10px 16px;
+                font-size: 14px;
+            }
+
+            #status {
+                padding: 10px;
+                font-size: 13px;
+            }
+
+            .result-text {
+                font-size: 13px;
+                padding: 10px;
+                max-height: 350px;
+            }
+
+            .speaker-avatar {
+                width: 28px;
+                height: 28px;
+                font-size: 11px;
+            }
+            .speaker-bubble {
+                padding: 8px 10px;
+                font-size: 13px;
+            }
+
+            .jtbd-category-icon {
+                font-size: 20px;
+            }
+            .jtbd-category-title {
+                font-size: 15px;
             }
         }
     </style>
