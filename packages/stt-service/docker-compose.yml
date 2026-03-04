@@ -3,8 +3,8 @@ version: '3.8'
 services:
   stt-service:
     build:
-      context: ..
-      dockerfile: stt-service/Dockerfile
+      context: ../..
+      dockerfile: packages/stt-service/Dockerfile
     container_name: hearyou-stt
     ports:
       - "8000:8000"
@@ -12,7 +12,6 @@ services:
       - ./uploads:/app/uploads
       - ./results:/app/results
       - ./.env.yandex:/app/.env.yandex:ro
-      - /root/hearyou/core:/app/core:ro
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped

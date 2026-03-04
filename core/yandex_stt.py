@@ -294,7 +294,11 @@ class YandexSTT:
                     for chunk in chunks
                 ])
                 
-                return {"result": full_text.strip()}
+                # Вернуть полную структуру с chunks для speaker diarization
+                return {
+                    "result": full_text.strip(),
+                    "chunks": chunks
+                }
             
             time.sleep(poll_interval)
         

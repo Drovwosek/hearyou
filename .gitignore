@@ -1,3 +1,7 @@
+# Important documentation (exceptions from wildcard rules below)
+!IMPLEMENTATION_REPORT.md
+!QUICK_START.md
+
 # Python
 __pycache__/
 *.py[cod]
@@ -53,13 +57,11 @@ htmlcov/
 .pytest_cache/
 
 # Temporary documentation (added 2026-02-27)
-*_REPORT.md
 *_RESEARCH.md
-*_IMPLEMENTATION.md
 *_SUSPENDED.md
 *_COMPLETE.md
 PRODUCTION_FIX_*.md
 README_FINAL.md
 README_OLD.md
-QUICKSTART.md
 docs/archive/
+test_jtbd_result.json

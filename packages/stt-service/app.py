@@ -7,11 +7,14 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Header, Requ
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 import uvicorn
 import asyncio
 import os
 import sys
 import json
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
@@ -36,8 +39,16 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, '/root/hearyou')
 
 from core.yandex_stt import YandexSTT
-from core.stt_corrections import TranscriptionCorrector
-from core.filler_words_filter import FillerWordsFilter
+from core.text_cleaner import TranscriptionCleaner
+
+# JTBD анализатор - опционально (требует anthropic)
+try:
+    from core.jtbd_analyzer import JTBDAnalyzer
+    JTBD_AVAILABLE = True
+except ImportError:
+    JTBD_AVAILABLE = False
+    logger.warning("JTBD Analyzer недоступен: не установлен пакет 'anthropic'")
+
 from ispring_hints import DEFAULT_HINTS
 from speaker_diarization_resemblyzer import (
     SpeakerDiarizationResemblyzer,
@@ -56,8 +67,14 @@ app = FastAPI(
 async def log_requests(request: Request, call_next):
     start_time = time.time()
     
-    # Логируем входящий запрос
+    # Логируем входящий запрос (минимально)
     logger.info(f"{request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
+    
+    # Для POST /transcribe логируем заголовки
+    if request.method == "POST" and request.url.path == "/transcribe":
+        logger.info(f"🔍 Content-Type: {request.headers.get('content-type')}")
+        logger.info(f"🔍 Content-Length: {request.headers.get('content-length')}")
+        # НЕ читаем body в middleware - это ломает multipart/form-data парсинг в FastAPI!
     
     try:
         response = await call_next(request)
@@ -66,9 +83,26 @@ async def log_requests(request: Request, call_next):
         # Логируем ответ
         logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration:.2f}s)")
         
+        # Если 400 на /transcribe - логируем подробности + response body
+        if response.status_code >= 400 and request.url.path == "/transcribe":
+            logger.error(f"❌ HTTP {response.status_code} on /transcribe")
+            logger.error(f"❌ Request took {duration:.2f}s")
+            
+            # Попытаемся прочитать response body для диагностики
+            if hasattr(response, 'body'):
+                try:
+                    body = response.body.decode('utf-8')[:500]  # первые 500 символов
+                    logger.error(f"❌ Response body: {body}")
+                except Exception as e:
+                    logger.error(f"❌ Could not read response body: {e}")
+            
+            logger.error(f"❌ This suggests FastAPI rejected the request before reaching the endpoint")
+            logger.error(f"❌ Possible causes: invalid Content-Type, missing required fields, or parsing error")
+        
         return response
     except Exception as e:
         logger.error(f"{request.method} {request.url.path} failed: {e}")
+        logger.error(tb.format_exc())
         raise
 
 # CORS для доступа из браузера
@@ -79,6 +113,54 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Exception handlers для детального логирования ошибок
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"❌ VALIDATION ERROR on {request.method} {request.url.path}")
+    logger.error(f"❌ Client: {request.client.host if request.client else 'unknown'}")
+    logger.error(f"❌ Content-Type: {request.headers.get('content-type')}")
+    logger.error(f"❌ Errors count: {len(exc.errors())}")
+    
+    # Детальный вывод каждой ошибки
+    for i, error in enumerate(exc.errors(), 1):
+        loc = ' -> '.join(str(x) for x in error.get('loc', []))
+        logger.error(f"  ❌ Error {i}:")
+        logger.error(f"     Location: {loc}")
+        logger.error(f"     Type: {error.get('type')}")
+        logger.error(f"     Message: {error.get('msg')}")
+        if 'input' in error:
+            input_str = str(error.get('input'))[:100]  # первые 100 символов
+            logger.error(f"     Input: {input_str}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "message": "Validation failed - check server logs for details"
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    logger.error(f"❌ HTTP Exception {exc.status_code} on {request.method} {request.url.path}")
+    logger.error(f"❌ Detail: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"❌ Unhandled exception on {request.method} {request.url.path}: {type(exc).__name__}")
+    logger.error(f"❌ Message: {str(exc)}")
+    logger.error(f"❌ Traceback:")
+    logger.error(tb.format_exc())
+    
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"}
+    )
 
 # Конфигурация
 UPLOAD_DIR = Path("uploads")
@@ -114,9 +196,20 @@ stt = YandexSTT(
     s3_secret_key=os.getenv('YANDEX_S3_SECRET_KEY'),
     s3_bucket=os.getenv('YANDEX_S3_BUCKET', 'hearyou-stt-temp')
 )
-corrector = TranscriptionCorrector()
-filler_filter = FillerWordsFilter()
+cleaner = TranscriptionCleaner()  # Полный пайплайн очистки (звуки + паразиты + артефакты)
 diarizer = SpeakerDiarizationResemblyzer()  # Speaker diarization через Resemblyzer
+
+# Инициализация JTBD анализатора (с обработкой ошибок если нет API ключа)
+if JTBD_AVAILABLE:
+    try:
+        jtbd_analyzer = JTBDAnalyzer()
+        logger.info("JTBD Analyzer initialized successfully")
+    except ValueError as e:
+        logger.warning(f"JTBD Analyzer not initialized: {e}")
+        jtbd_analyzer = None
+else:
+    jtbd_analyzer = None
+    logger.info("JTBD Analyzer disabled (anthropic package not installed)")
 
 
 def format_with_speakers(result_data: dict) -> str:
@@ -431,6 +524,7 @@ async def process_audio_file(
         logger.info(f"Starting async transcription for task {task_id}")
         
         # Запускаем Yandex STT
+        # speaker_labeling не поддерживается в transcribe_async - используем Resemblyzer отдельно
         operation_id = stt.transcribe_async(
             str(audio_to_send),
             language=options.get("language", "ru-RU"),
@@ -438,7 +532,6 @@ async def process_audio_file(
             literature_text=options.get("literature", False),
             auto_upload=True,
             # hints=DEFAULT_HINTS,  # Не поддерживается в async API
-            speaker_labeling=False,  # Yandex v2 не поддерживает, используем Resemblyzer
         )
         
         logger.info(f"Task {task_id}: operation_id = {operation_id}")
@@ -521,19 +614,41 @@ async def process_audio_file(
         
         tasks_status[task_id]["progress"] = 70
         
-        # Фильтрация слов-паразитов
-        if options.get("clean", False):
-            tasks_status[task_id]["message"] = "Очистка от слов-паразитов..."
-            text = filler_filter.clean(text)
-        
-        tasks_status[task_id]["progress"] = 80
-        
-        # Исправления
-        if options.get("corrections", True):
-            tasks_status[task_id]["message"] = "Применение исправлений..."
-            text = corrector.correct(text)
+        # Полная очистка текста (звуки + паразиты + артефакты)
+        if options.get("clean", False) or options.get("corrections", True):
+            tasks_status[task_id]["message"] = "Улучшение качества текста..."
+            text = cleaner.clean(
+                text,
+                remove_filler_sounds=True,  # Всегда убираем лишние звуки (эээ, ммм, бе, ме)
+                remove_filler_words=options.get("clean", False),  # Слова-паразиты (по запросу)
+                fix_artifacts=options.get("corrections", True),  # Артефакты (иишка → ИИшка)
+            )
         
         tasks_status[task_id]["progress"] = 90
+        
+        # JTBD анализ (если включен)
+        jtbd_result = None
+        if options.get("analyze_jtbd", True) and jtbd_analyzer:
+            try:
+                tasks_status[task_id]["message"] = "JTBD анализ..."
+                tasks_status[task_id]["progress"] = 92
+                
+                logger.info(f"Task {task_id}: starting JTBD analysis")
+                jtbd_result = jtbd_analyzer.analyze(text)
+                
+                logger.info(
+                    f"Task {task_id}: JTBD analysis completed, "
+                    f"{jtbd_result['metadata']['total_elements']} elements found"
+                )
+            except Exception as e:
+                logger.error(f"Task {task_id}: JTBD analysis failed: {e}")
+                jtbd_result = {
+                    "error": str(e),
+                    "jobs": [], "pains": [], "gains": [], "context": [], "triggers": [],
+                    "summary": f"Ошибка анализа: {str(e)}"
+                }
+        
+        tasks_status[task_id]["progress"] = 95
         
         # Сохранение результата
         result_file = RESULTS_DIR / f"{task_id}.json"
@@ -544,6 +659,7 @@ async def process_audio_file(
             "timestamp": datetime.now().isoformat(),
             "options": options,
             "raw_result": result,
+            "jtbd": jtbd_result,
         }
         
         with open(result_file, 'w', encoding='utf-8') as f:
@@ -694,7 +810,8 @@ async def complete_upload(
     punctuation: bool = Form(True),
     literature: bool = Form(False),
     clean: bool = Form(False),
-    corrections: bool = Form(True)
+    corrections: bool = Form(True),
+    analyze_jtbd: bool = Form(False)  # JTBD отключен по умолчанию
 ):
     """
     Завершение chunked upload и запуск транскрибации
@@ -754,6 +871,7 @@ async def complete_upload(
         "literature": literature,
         "clean": clean,
         "corrections": corrections,
+        "analyze_jtbd": analyze_jtbd,
     }
     
     tasks_status[task_id] = {
@@ -779,6 +897,12 @@ async def complete_upload(
     }
 
 
+@app.post("/test-upload")
+async def test_upload(file: UploadFile = File(...)):
+    """Минимальный тест - принимает только файл"""
+    logger.info(f"🧪 TEST: Received file={file.filename}, size={file.size}, content_type={file.content_type}")
+    return {"status": "ok", "filename": file.filename, "content_type": file.content_type}
+
 @app.post("/transcribe")
 async def transcribe(
     file: UploadFile = File(...),
@@ -788,6 +912,7 @@ async def transcribe(
     clean: bool = Form(False),
     corrections: bool = Form(True),
     speaker_labeling: bool = Form(False),
+    analyze_jtbd: bool = Form(False),  # JTBD отключен по умолчанию
     user: str = Header(None, alias="X-User"),
     x_forwarded_for: str = Header(None, alias="X-Forwarded-For"),
     x_real_ip: str = Header(None, alias="X-Real-IP")
@@ -802,39 +927,54 @@ async def transcribe(
     - **literature**: литературный текст (Yandex фильтр)
     - **clean**: убрать слова-паразиты
     - **corrections**: применять исправления
+    - **analyze_jtbd**: анализировать по JTBD фреймворку (Jobs To Be Done)
     """
+    
+    # 🔍 STEP 1: Получили параметры
+    logger.info(f"📥 STEP 1: Received params - file={file.filename}, language={language}, punctuation={punctuation}, literature={literature}, clean={clean}, corrections={corrections}, speaker_labeling={speaker_labeling}, analyze_jtbd={analyze_jtbd}")
     
     # Rate limiting (защита от спама)
     # Получаем IP из headers (если за прокси) или используем заглушку
     client_ip = x_forwarded_for or x_real_ip or "direct"
+    logger.info(f"📍 STEP 2: Client IP = {client_ip}")
     if client_ip and ',' in client_ip:
         client_ip = client_ip.split(',')[0].strip()  # Первый IP из списка
     
     logger.info(f"Upload request from {client_ip}: {file.filename} ({file.content_type})")
     
+    logger.info("⏱️ STEP 3: Checking rate limit...")
     try:
         check_rate_limit(client_ip)
+        logger.info("✅ STEP 3: Rate limit OK")
     except HTTPException as e:
-        logger.warning(f"Rate limit exceeded for {client_ip}")
+        logger.warning(f"❌ STEP 3: Rate limit exceeded for {client_ip}")
         raise
     
     # Генерация task_id
+    logger.info("🔑 STEP 4: Generating task_id...")
     task_id = hashlib.md5(
         f"{file.filename}{datetime.now().isoformat()}".encode()
     ).hexdigest()[:16]
+    logger.info(f"✅ STEP 4: task_id = {task_id}")
     
     # Санитизация имени файла (защита от инъекций)
+    logger.info("🧹 STEP 5: Sanitizing filename...")
     safe_filename = sanitize_filename(file.filename)
     if file.filename != safe_filename:
-        logger.info(f"Sanitized filename: '{file.filename}' -> '{safe_filename}'")
+        logger.info(f"⚠️  Sanitized filename: '{file.filename}' -> '{safe_filename}'")
+    logger.info(f"✅ STEP 5: safe_filename = {safe_filename}")
     
     # Санитизация языкового кода
+    logger.info("🌍 STEP 6: Sanitizing language code...")
     safe_language = sanitize_language_code(language)
+    logger.info(f"✅ STEP 6: safe_language = {safe_language}")
     
     # Проверка размера файла
+    logger.info("📏 STEP 7: Checking file size...")
     file.file.seek(0, 2)  # Переместиться в конец файла
     file_size = file.file.tell()
     file.file.seek(0)  # Вернуться в начало
+    logger.info(f"✅ STEP 7: file_size = {file_size} bytes ({file_size / (1024*1024):.2f} MB)")
     
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(
@@ -843,27 +983,33 @@ async def transcribe(
         )
     
     if file_size == 0:
+        logger.error("❌ STEP 7: File is empty")
         raise HTTPException(status_code=400, detail="Файл пустой")
     
     # Сохранение файла
+    logger.info(f"💾 STEP 8: Saving file to {UPLOAD_DIR}...")
     file_path = UPLOAD_DIR / f"{task_id}_{safe_filename}"
     try:
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
+        logger.info(f"✅ STEP 8: File saved to {file_path}")
     except Exception as e:
+        logger.error(f"❌ STEP 8: Failed to save file: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
     
     # Проверка безопасности файла
+    logger.info(f"🔒 STEP 9: Validating file security...")
     try:
         validate_file_security(safe_filename, file_path)
-        logger.info(f"File validated successfully: {safe_filename}")
+        logger.info(f"✅ STEP 9: File validated successfully: {safe_filename}")
     except ValueError as e:
         # Удаляем небезопасный файл
-        logger.warning(f"File validation failed: {safe_filename}, reason: {e}")
+        logger.error(f"❌ STEP 9: File validation failed: {safe_filename}, reason: {e}")
         file_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=str(e))
     
     # Опции (используем санитизированный язык)
+    logger.info("⚙️ STEP 10: Creating options...")
     options = {
         "language": safe_language,
         "punctuation": punctuation,
@@ -871,9 +1017,12 @@ async def transcribe(
         "clean": clean,
         "corrections": corrections,
         "speaker_labeling": speaker_labeling,
+        "analyze_jtbd": analyze_jtbd,
     }
+    logger.info(f"✅ STEP 10: options = {options}")
     
     # Создание задачи (используем санитизированное имя для отображения)
+    logger.info("📋 STEP 11: Creating task status...")
     tasks_status[task_id] = {
         "status": "queued",
         "progress": 0,
@@ -881,13 +1030,16 @@ async def transcribe(
         "created_at": datetime.now().isoformat(),
         "user": user or "anonymous",
     }
+    logger.info(f"✅ STEP 11: Task status created for {task_id}")
     
     # Добавление в очередь
+    logger.info("📤 STEP 12: Adding task to queue...")
     await task_queue.put({
         "file_path": file_path,
         "task_id": task_id,
         "options": options,
     })
+    logger.info(f"✅ STEP 12: Task {task_id} added to queue")
     
     return {
         "task_id": task_id,
