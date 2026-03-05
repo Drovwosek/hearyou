@@ -3,7 +3,7 @@
 HearYou STT Service - FastAPI веб-сервис для транскрибации
 """
 
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Header, Request
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Header, Request, Response
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,11 +50,32 @@ except ImportError:
     logger.warning("JTBD Analyzer недоступен: не установлен пакет 'anthropic'")
 
 from ispring_hints import DEFAULT_HINTS
+
+# Импортируем оба backend'а для fallback
 from speaker_diarization_resemblyzer import (
     SpeakerDiarizationResemblyzer,
-    merge_transcription_with_speakers,
-    format_with_speakers as format_speakers_dialogue
+    merge_transcription_with_speakers as merge_resemblyzer,
+    format_with_speakers as format_resemblyzer
 )
+
+# Пробуем загрузить pyannote.audio (state-of-the-art)
+try:
+    from speaker_diarization_pyannote import (
+        SpeakerDiarizationPyannote,
+        merge_transcription_with_speakers as merge_pyannote,
+        format_with_speakers as format_pyannote
+    )
+    DIARIZATION_BACKEND = "pyannote"
+    # Используем pyannote как primary
+    merge_transcription_with_speakers = merge_pyannote
+    format_speakers_dialogue = format_pyannote
+    logger.info("✅ Используется pyannote.audio для speaker diarization")
+except Exception as e:
+    logger.warning(f"⚠️ Не удалось загрузить pyannote, используется fallback: {e}")
+    DIARIZATION_BACKEND = "resemblyzer"
+    # Используем resemblyzer как primary
+    merge_transcription_with_speakers = merge_resemblyzer
+    format_speakers_dialogue = format_resemblyzer
 
 app = FastAPI(
     title="HearYou STT Service",
@@ -197,7 +218,12 @@ stt = YandexSTT(
     s3_bucket=os.getenv('YANDEX_S3_BUCKET', 'hearyou-stt-temp')
 )
 cleaner = TranscriptionCleaner()  # Полный пайплайн очистки (звуки + паразиты + артефакты)
-diarizer = SpeakerDiarizationResemblyzer()  # Speaker diarization через Resemblyzer
+
+# Инициализация speaker diarization
+if DIARIZATION_BACKEND == "pyannote":
+    diarizer = SpeakerDiarizationPyannote()  # Pyannote.audio (state-of-the-art)
+else:
+    diarizer = SpeakerDiarizationResemblyzer()  # Fallback: Resemblyzer
 
 # Инициализация JTBD анализатора (с обработкой ошибок если нет API ключа)
 if JTBD_AVAILABLE:
@@ -542,14 +568,27 @@ async def process_audio_file(
             tasks_status[task_id]["message"] = "Транскрипция + определение спикеров..."
             tasks_status[task_id]["progress"] = 60
             
-            # Запускаем Resemblyzer диаризацию параллельно с Yandex
+            # Запускаем диаризацию параллельно с Yandex
             async def run_diarization():
                 try:
-                    logger.info(f"Task {task_id}: starting Resemblyzer diarization")
-                    return diarizer.diarize(str(audio_to_send), num_speakers=2)
+                    backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
+                    logger.info(f"Task {task_id}: starting {backend_name} diarization")
+                    result = diarizer.diarize(str(audio_to_send), num_speakers=2)
+                    return (result, DIARIZATION_BACKEND)  # Возвращаем также backend для правильного merge/format
                 except Exception as e:
-                    logger.error(f"Task {task_id}: diarization failed: {e}")
-                    return None
+                    logger.warning(f"Task {task_id}: {DIARIZATION_BACKEND} diarization failed: {e}")
+                    
+                    # Fallback: если pyannote упала, пробуем resemblyzer
+                    if DIARIZATION_BACKEND == "pyannote":
+                        try:
+                            logger.info(f"Task {task_id}: falling back to resemblyzer")
+                            fallback_diarizer = SpeakerDiarizationResemblyzer()
+                            result = fallback_diarizer.diarize(str(audio_to_send), num_speakers=2)
+                            return (result, "resemblyzer")  # Указываем что использовался resemblyzer
+                        except Exception as fallback_error:
+                            logger.error(f"Task {task_id}: fallback diarization also failed: {fallback_error}")
+                    
+                    return (None, None)
             
             # Запускаем оба процесса параллельно
             diarization_task = asyncio.create_task(run_diarization())
@@ -561,7 +600,8 @@ async def process_audio_file(
             # Ждём диаризацию
             tasks_status[task_id]["message"] = "Объединение результатов..."
             tasks_status[task_id]["progress"] = 75
-            speaker_segments = await diarization_task
+            diarization_result = await diarization_task
+            speaker_segments, used_backend = diarization_result if diarization_result else (None, None)
             
         else:
             # Без диаризации - просто ждём транскрипцию
@@ -587,11 +627,19 @@ async def process_audio_file(
                     for alt in chunk.get('alternatives', []):
                         all_words.extend(alt.get('words', []))
                 
+                # Выбираем функции merge/format в зависимости от backend
+                if used_backend == "resemblyzer":
+                    merge_fn = merge_resemblyzer
+                    format_fn = format_resemblyzer
+                else:
+                    merge_fn = merge_transcription_with_speakers
+                    format_fn = format_speakers_dialogue
+                
                 # Объединяем с диаризацией
-                words_with_speakers = merge_transcription_with_speakers(all_words, speaker_segments)
+                words_with_speakers = merge_fn(all_words, speaker_segments)
                 
                 # Форматируем как диалог
-                text = format_speakers_dialogue(words_with_speakers)
+                text = format_fn(words_with_speakers)
                 
                 # Сохраняем enriched data
                 result['words_with_speakers'] = words_with_speakers
@@ -716,8 +764,13 @@ async def favicon():
 
 
 @app.get("/", response_class=HTMLResponse)
-async def root():
+async def root(response: Response):
     """Главная страница с веб-интерфейсом"""
+    # Отключаем кеширование для dev режима
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
     html_path = Path(__file__).parent / "static" / "index.html"
     if html_path.exists():
         return html_path.read_text(encoding='utf-8')

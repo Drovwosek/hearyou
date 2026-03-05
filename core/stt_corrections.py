@@ -98,23 +98,30 @@ class TranscriptionCorrector:
         result = text
         
         # Простые замены (по словарю)
-        words = result.split()
-        corrected_words = []
+        # ВАЖНО: Сохраняем \n\n для разделения спикеров!
+        blocks = result.split('\n\n')
+        corrected_blocks = []
         
-        for word in words:
-            # Убрать пунктуацию для сравнения
-            clean_word = word.lower().strip('.,!?;:')
+        for block in blocks:
+            words = block.split()
+            corrected_words = []
             
-            if clean_word in self.corrections:
-                # Заменить, сохранив пунктуацию
-                replacement = self.corrections[clean_word]
-                # Добавить обратно пунктуацию если была
-                suffix = word[len(clean_word):]
-                corrected_words.append(replacement + suffix)
-            else:
-                corrected_words.append(word)
+            for word in words:
+                # Убрать пунктуацию для сравнения
+                clean_word = word.lower().strip('.,!?;:')
+                
+                if clean_word in self.corrections:
+                    # Заменить, сохранив пунктуацию
+                    replacement = self.corrections[clean_word]
+                    # Добавить обратно пунктуацию если была
+                    suffix = word[len(clean_word):]
+                    corrected_words.append(replacement + suffix)
+                else:
+                    corrected_words.append(word)
+            
+            corrected_blocks.append(' '.join(corrected_words))
         
-        result = ' '.join(corrected_words)
+        result = '\n\n'.join(corrected_blocks)
         
         # Фонетические замены (regex)
         if use_phonetic:

@@ -256,7 +256,7 @@ def format_with_speakers(words: List[Dict]) -> str:
     if current_line:
         lines.append(f"{current_speaker}: {' '.join(current_line)}")
     
-    return "\n".join(lines)
+    return "\n\n".join(lines)
 
 
 # Для тестирования
