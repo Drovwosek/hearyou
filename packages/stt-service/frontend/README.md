@@ -1,124 +1,197 @@
-# HearYou STT Service - React Frontend
+# STT Service Frontend
 
-Modern React + TypeScript frontend for the HearYou transcription service.
+Modern React + TypeScript frontend for the Speech-to-Text service, built with Vite.
 
-## Development
+## 🏗️ Project Structure
+
+```
+frontend/
+├── src/
+│   ├── components/      # React components
+│   ├── hooks/           # Custom React hooks
+│   ├── types/           # TypeScript type definitions
+│   ├── utils/           # Utility functions
+│   ├── styles/          # CSS and styling files
+│   ├── App.tsx          # Main application component
+│   └── main.tsx         # Application entry point
+├── public/              # Static assets
+├── index.html           # HTML template
+├── vite.config.ts       # Vite configuration
+├── tsconfig.json        # TypeScript configuration
+└── package.json         # Dependencies and scripts
+```
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ 
-- npm
+- Node.js 18+ and npm
+- Backend STT service running on `http://localhost:8000`
 
 ### Installation
 
 ```bash
-cd frontend
+# Install dependencies
 npm install
 ```
 
-### Development Server
+### Development
 
-Start the dev server with hot reload:
+Run the development server on port 5173:
 
 ```bash
 npm run dev
 ```
 
-This will start the frontend on `http://localhost:3000` with API proxy to `http://localhost:8000`.
+The dev server will start at `http://localhost:5173` with:
+- Hot Module Replacement (HMR)
+- TypeScript type checking
+- API proxy to backend at `localhost:8000`
 
-Make sure the backend FastAPI server is running on port 8000:
+### Production Build
 
-```bash
-# In the parent directory
-python app.py
-```
-
-### Build for Production
-
-Build optimized static files:
+Build the application for production:
 
 ```bash
 npm run build
 ```
 
-This creates production-ready files in `../static/dist/`.
+**Build output:** `../static/dist/`
+
+The production build:
+- Minifies and optimizes code
+- Generates source maps
+- Outputs to `../static/dist/` directory (served by Flask backend)
+- Includes all assets with cache-busting hashes
 
 ### Preview Production Build
 
-Preview the production build locally:
+Test the production build locally:
 
 ```bash
 npm run preview
 ```
 
-## Project Structure
+## 📦 Scripts
 
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server (port 5173) |
+| `npm run build` | Build for production → `../static/dist/` |
+| `npm run preview` | Preview production build locally |
+| `npm run lint` | Run ESLint for code quality |
+
+## ⚙️ Configuration
+
+### Vite Configuration (`vite.config.ts`)
+
+- **Dev server port:** 5173
+- **Build output:** `../static/dist/`
+- **API proxy:** Routes `/transcribe`, `/status`, `/result`, `/history` to `localhost:8000`
+
+### TypeScript
+
+- Strict mode enabled
+- React 19 types included
+- Path aliases supported via `@types/node`
+
+## 🔧 Key Features
+
+- **Real-time transcription status** via Server-Sent Events (SSE)
+- **File upload** with progress tracking
+- **Transcription history** with localStorage persistence
+- **Speaker labeling** support
+- **JTBD analysis** integration
+- **Shareable results** via task_id URLs
+
+## 🌐 Backend Integration
+
+The frontend expects the following backend endpoints:
+
+- `POST /transcribe` - Upload audio file
+- `GET /status/<task_id>` - SSE stream for task status
+- `GET /result/<task_id>` - Fetch transcription result
+- `GET /history` - Fetch transcription history
+- `POST /history/<task_id>` - Save to history
+- `DELETE /history` - Clear history
+
+## 🛠️ Development Tips
+
+### Adding New Components
+
+```bash
+# Create component file
+touch src/components/MyComponent.tsx
+
+# Create component styles
+touch src/styles/MyComponent.css
 ```
-frontend/
-├── src/
-│   ├── components/       # React components
-│   │   ├── UploadForm.tsx
-│   │   ├── ProgressBar.tsx
-│   │   ├── TranscriptionResult.tsx
-│   │   ├── SpeakerBlock.tsx
-│   │   ├── JTBDAnalysis.tsx
-│   │   └── History.tsx
-│   ├── types/           # TypeScript types
-│   │   └── index.ts
-│   ├── utils/           # Utility functions
-│   │   ├── api.ts       # API calls and history
-│   │   └── textFormatting.ts  # Speaker text processing
-│   ├── App.tsx          # Main app component
-│   ├── App.css
-│   ├── main.tsx         # Entry point
-│   └── index.css
-├── index.html
-├── vite.config.ts       # Vite configuration
-├── tsconfig.json        # TypeScript config
-└── package.json
+
+### Custom Hooks
+
+Place reusable hooks in `src/hooks/`:
+
+```typescript
+// src/hooks/useTranscription.ts
+export const useTranscription = () => {
+  // Hook logic
+};
 ```
 
-## Features
+### Type Definitions
 
-- **File Upload**: Audio/video files up to 25GB
-- **Speaker Diarization**: Identify and separate speakers
-- **JTBD Analysis**: Jobs-to-be-Done analysis toggle
-- **Real-time Progress**: Streaming status updates via EventSource
-- **History**: Local storage of recent transcriptions
-- **Responsive Design**: Mobile and desktop support
-- **Copy to Clipboard**: Quick text copying
+Add types to `src/types/index.ts` or create new type files in `src/types/`
 
-## Technology Stack
+### API Utilities
 
-- **React 18** with TypeScript
-- **Vite** for fast builds and HMR
-- **CSS Modules** for component styling
-- **EventSource API** for streaming updates
-- **LocalStorage** for history persistence
+API functions are in `src/utils/api.ts` for centralized backend communication
 
-## API Integration
+## 📝 Environment
 
-The frontend communicates with the FastAPI backend via these endpoints:
+No `.env` file needed - all configuration is in `vite.config.ts`
 
-- `POST /transcribe` - Upload and start transcription
-- `GET /status/{task_id}/stream` - EventSource for progress updates
-- `GET /result/{task_id}` - Fetch completed transcription
+## 🐛 Troubleshooting
 
-## Deployment
+### Port 5173 already in use
 
-The production build is served by the FastAPI backend:
+```bash
+# Kill process on port 5173
+kill -9 $(lsof -t -i:5173)
 
-1. Build: `npm run build`
-2. Files go to `../static/dist/`
-3. Backend serves `static/dist/index.html` at root
-4. Assets are mounted at `/assets/*`
+# Or use a different port
+vite --port 5174
+```
 
-No separate deployment needed - it's all served by the FastAPI app.
+### Build errors
 
-## Development Notes
+```bash
+# Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm install
+npm run build
+```
 
-- Uses TypeScript for type safety
-- Components are functional with hooks
-- No state management library needed (useState/useEffect sufficient)
-- Maintains exact feature parity with vanilla JS version
-- Preserves ultra-compact speaker spacing design
+### TypeScript errors
+
+```bash
+# Check types without building
+npx tsc --noEmit
+```
+
+## 📚 Tech Stack
+
+- **React 19** - UI framework
+- **TypeScript 5.9** - Type safety
+- **Vite 7** - Build tool & dev server
+- **ESLint** - Code linting
+- **CSS Modules** - Component styling
+
+## 🔗 Links
+
+- [Vite Documentation](https://vitejs.dev/)
+- [React Documentation](https://react.dev/)
+- [TypeScript Documentation](https://www.typescriptlang.org/)
+
+---
+
+**Built with ❤️ for HearYou STT Service**
