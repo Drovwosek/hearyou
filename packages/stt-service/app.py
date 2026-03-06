@@ -242,6 +242,53 @@ else:
     logger.info("JTBD Analyzer disabled (anthropic package not installed)")
 
 
+def filter_short_segments(segments: List[Dict], min_duration_ratio: float = 0.05) -> List[Dict]:
+    """
+    Фильтрует короткие сегменты спикеров (вероятные ошибки диаризации)
+    
+    Args:
+        segments: Список сегментов спикеров [{speaker, start, end}, ...]
+        min_duration_ratio: Минимальная доля времени для спикера (0.05 = 5%)
+    
+    Returns:
+        Отфильтрованные сегменты (убраны спикеры с < min_duration_ratio времени)
+    """
+    if not segments:
+        return segments
+    
+    # Вычисляем общую длительность
+    total_duration = max(s['end'] for s in segments)
+    if total_duration == 0:
+        return segments
+    
+    # Вычисляем длительность для каждого спикера
+    speaker_durations = {}
+    for seg in segments:
+        speaker = seg['speaker']
+        duration = seg['end'] - seg['start']
+        speaker_durations[speaker] = speaker_durations.get(speaker, 0) + duration
+    
+    # Находим спикеров которые говорят > min_duration_ratio времени
+    valid_speakers = {
+        speaker for speaker, duration in speaker_durations.items()
+        if duration / total_duration >= min_duration_ratio
+    }
+    
+    # Фильтруем сегменты
+    filtered = [s for s in segments if s['speaker'] in valid_speakers]
+    
+    # Логируем результат
+    removed = len(segments) - len(filtered)
+    if removed > 0:
+        removed_speakers = set(s['speaker'] for s in segments) - valid_speakers
+        logger.info(
+            f"Filtered {removed} short segments from {removed_speakers} "
+            f"(< {min_duration_ratio*100:.1f}% of audio)"
+        )
+    
+    return filtered
+
+
 def format_with_speakers(result_data: dict) -> str:
     """
     Форматировать транскрипцию с разделением по спикерам
@@ -605,7 +652,13 @@ async def process_audio_file(
                 try:
                     backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
                     logger.info(f"Task {task_id}: running {backend_name} diarization (fast mode)")
-                    speaker_segments = diarizer.diarize(str(audio_to_send), num_speakers=2)
+                    speaker_segments = diarizer.diarize(str(audio_to_send), num_speakers=None)
+                    
+                    # Фильтруем короткие сегменты (< 5% времени)
+                    if speaker_segments:
+                        speaker_segments = filter_short_segments(speaker_segments, min_duration_ratio=0.05)
+                        logger.info(f"Task {task_id}: {len(speaker_segments)} segments after filtering")
+                    
                     used_backend = DIARIZATION_BACKEND
                 except Exception as e:
                     logger.warning(f"Task {task_id}: diarization failed: {e}")
@@ -630,12 +683,24 @@ async def process_audio_file(
                         format_fn = format_speakers_dialogue
                     
                     words_with_speakers = merge_fn(all_words, speaker_segments)
-                    text = format_fn(words_with_speakers)
+                    
+                    # Проверяем количество уникальных спикеров
+                    unique_speakers = set(w.get('speaker', 'UNKNOWN') for w in words_with_speakers)
+                    num_speakers = len(unique_speakers)
+                    
+                    logger.info(f"Task {task_id}: merged {len(words_with_speakers)} words with {num_speakers} unique speakers in fast mode: {unique_speakers}")
+                    
+                    # Форматируем как диалог (только если > 1 спикера)
+                    if num_speakers > 1:
+                        text = format_fn(words_with_speakers)
+                        logger.info(f"Task {task_id}: formatted as multi-speaker dialogue")
+                    else:
+                        # Только один спикер - вернуть простой текст без префиксов
+                        text = result.get('result', '')
+                        logger.info(f"Task {task_id}: single speaker detected, using plain text")
                     
                     result['words_with_speakers'] = words_with_speakers
                     result['speaker_segments'] = speaker_segments
-                    
-                    logger.info(f"Task {task_id}: merged speakers in fast mode")
                 except Exception as e:
                     logger.error(f"Task {task_id}: failed to merge speakers in fast mode: {e}")
                     text = result.get('result', '')
@@ -674,7 +739,13 @@ async def process_audio_file(
                     try:
                         backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
                         logger.info(f"Task {task_id}: starting {backend_name} diarization")
-                        result = diarizer.diarize(str(audio_to_send), num_speakers=2)
+                        result = diarizer.diarize(str(audio_to_send), num_speakers=None)
+                        
+                        # Фильтруем короткие сегменты (< 5% времени)
+                        if result:
+                            result = filter_short_segments(result, min_duration_ratio=0.05)
+                            logger.info(f"Task {task_id}: {len(result)} segments after filtering")
+                        
                         return (result, DIARIZATION_BACKEND)  # Возвращаем также backend для правильного merge/format
                     except Exception as e:
                         logger.warning(f"Task {task_id}: {DIARIZATION_BACKEND} diarization failed: {e}")
@@ -684,7 +755,13 @@ async def process_audio_file(
                             try:
                                 logger.info(f"Task {task_id}: falling back to resemblyzer")
                                 fallback_diarizer = SpeakerDiarizationResemblyzer()
-                                result = fallback_diarizer.diarize(str(audio_to_send), num_speakers=2)
+                                result = fallback_diarizer.diarize(str(audio_to_send), num_speakers=None)
+                                
+                                # Фильтруем короткие сегменты (< 5% времени)
+                                if result:
+                                    result = filter_short_segments(result, min_duration_ratio=0.05)
+                                    logger.info(f"Task {task_id}: {len(result)} segments after filtering (fallback)")
+                                
                                 return (result, "resemblyzer")  # Указываем что использовался resemblyzer
                             except Exception as fallback_error:
                                 logger.error(f"Task {task_id}: fallback diarization also failed: {fallback_error}")
@@ -739,14 +816,24 @@ async def process_audio_file(
                     # Объединяем с диаризацией
                     words_with_speakers = merge_fn(all_words, speaker_segments)
                     
-                    # Форматируем как диалог
-                    text = format_fn(words_with_speakers)
+                    # Проверяем количество уникальных спикеров
+                    unique_speakers = set(w.get('speaker', 'UNKNOWN') for w in words_with_speakers)
+                    num_speakers = len(unique_speakers)
+                    
+                    logger.info(f"Task {task_id}: merged {len(words_with_speakers)} words with {num_speakers} unique speakers: {unique_speakers}")
+                    
+                    # Форматируем как диалог (только если > 1 спикера)
+                    if num_speakers > 1:
+                        text = format_fn(words_with_speakers)
+                        logger.info(f"Task {task_id}: formatted as multi-speaker dialogue")
+                    else:
+                        # Только один спикер - вернуть простой текст без префиксов
+                        text = result.get('result', '')
+                        logger.info(f"Task {task_id}: single speaker detected, using plain text")
                     
                     # Сохраняем enriched data
                     result['words_with_speakers'] = words_with_speakers
                     result['speaker_segments'] = speaker_segments
-                    
-                    logger.info(f"Task {task_id}: merged {len(words_with_speakers)} words with {len(set(s['speaker'] for s in speaker_segments))} speakers")
                 except Exception as e:
                     logger.error(f"Task {task_id}: failed to merge speakers: {e}")
                     text = result.get('result', '')
