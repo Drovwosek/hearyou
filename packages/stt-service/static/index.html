@@ -992,6 +992,9 @@
             
             // Форматирование по спикерам или обычный текст
             if (speakerLabeling && (text.includes('SPEAKER_') || text.includes('Спикер '))) {
+                // Aggregate word-by-word speaker labels into blocks
+                text = aggregateSpeakerText(text);
+                
                 const speakerPattern = /(?:SPEAKER_(\d+)|Спикер (\d+)):/g;
                 const matches = [...text.matchAll(speakerPattern)];
                 const uniqueSpeakers = [...new Set(matches.map(m => m[1] || m[2]))];
@@ -1045,6 +1048,45 @@
 
             // Плавная прокрутка к результату
             setTimeout(() => resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        }
+        
+        function aggregateSpeakerText(text) {
+            // Aggregate word-by-word speaker labels into blocks separated by "\n\n"
+            // Input: "SPEAKER_00: word1\nSPEAKER_00: word2\nSPEAKER_01: word3"
+            // Output: "SPEAKER_00: word1 word2\n\nSPEAKER_01: word3"
+            
+            const lines = text.split('\n');
+            let currentSpeaker = null;
+            let currentWords = [];
+            let blocks = [];
+            
+            lines.forEach(line => {
+                const match = line.match(/^(?:SPEAKER_(\d+)|Спикер (\d+)):\s*(.+)/);
+                if (match) {
+                    const speakerNum = match[1] || match[2];
+                    const word = match[3].trim();
+                    
+                    if (speakerNum === currentSpeaker) {
+                        // Same speaker - add word to current block
+                        currentWords.push(word);
+                    } else {
+                        // New speaker - save previous block and start new one
+                        if (currentSpeaker !== null && currentWords.length > 0) {
+                            blocks.push(`SPEAKER_${currentSpeaker}: ${currentWords.join(' ')}`);
+                        }
+                        currentSpeaker = speakerNum;
+                        currentWords = [word];
+                    }
+                }
+            });
+            
+            // Don't forget the last block
+            if (currentSpeaker !== null && currentWords.length > 0) {
+                blocks.push(`SPEAKER_${currentSpeaker}: ${currentWords.join(' ')}`);
+            }
+            
+            // Join blocks with "\n\n" so formatSpeakers() can split them correctly
+            return blocks.join('\n\n');
         }
         
         function formatSpeakers(text) {
