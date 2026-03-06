@@ -1,7 +1,6 @@
 import React from 'react';
 import SpeakerBlock from './SpeakerBlock';
-import SpeakerLegend from './SpeakerLegend';
-import { aggregateSpeakerText, extractSpeakers } from '../utils/textFormatting';
+import { aggregateSpeakerText } from '../utils/textFormatting';
 import './TranscriptionResult.css';
 
 interface TranscriptionResultProps {
@@ -13,8 +12,6 @@ interface TranscriptionResultProps {
 
 const TranscriptionResult: React.FC<TranscriptionResultProps> = ({
   text,
-  filename,
-  taskId,
   speakerLabeling,
 }) => {
   const handleCopy = () => {
@@ -33,14 +30,10 @@ const TranscriptionResult: React.FC<TranscriptionResultProps> = ({
 
     if (speakerLabeling && (text.includes('SPEAKER_') || text.includes('Спикер '))) {
       const aggregated = aggregateSpeakerText(text);
-      const speakers = extractSpeakers(aggregated).map(s => parseInt(s));
       const lines = aggregated.split(/\n\n/);
 
       return (
         <div className="speaker-view">
-          {/* Speaker Legend */}
-          <SpeakerLegend speakers={speakers} />
-
           {/* Speaker Blocks */}
           <div className="speaker-blocks">
             {lines.map((line, idx) => {
@@ -62,9 +55,6 @@ const TranscriptionResult: React.FC<TranscriptionResultProps> = ({
     return <div className="result-text">{text}</div>;
   };
 
-  const words = text.split(/\s+/).length;
-  const chars = text.length;
-
   return (
     <div className="result-section">
       <div className="result-header">
@@ -72,12 +62,6 @@ const TranscriptionResult: React.FC<TranscriptionResultProps> = ({
         <button onClick={handleCopy} className="copy-btn">
           📋 Копировать
         </button>
-      </div>
-
-      <div className="result-info">
-        📄 Файл: {filename} | 📊 Слов: {words} | 📏 Символов: {chars}
-        {speakerLabeling && ' | 🎭 По ролям'}
-        {taskId && ` | 🔗 ID: ${taskId}`}
       </div>
 
       {renderContent()}
