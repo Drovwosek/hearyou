@@ -1,6 +1,7 @@
 import React from 'react';
 import SpeakerBlock from './SpeakerBlock';
-import { aggregateSpeakerText, extractSpeakers, getSpeakerColor } from '../utils/textFormatting';
+import SpeakerLegend from './SpeakerLegend';
+import { aggregateSpeakerText, extractSpeakers } from '../utils/textFormatting';
 import './TranscriptionResult.css';
 
 interface TranscriptionResultProps {
@@ -32,30 +33,13 @@ const TranscriptionResult: React.FC<TranscriptionResultProps> = ({
 
     if (speakerLabeling && (text.includes('SPEAKER_') || text.includes('Спикер '))) {
       const aggregated = aggregateSpeakerText(text);
-      const speakers = extractSpeakers(aggregated);
+      const speakers = extractSpeakers(aggregated).map(s => parseInt(s));
       const lines = aggregated.split(/\n\n/);
 
       return (
         <div className="speaker-view">
           {/* Speaker Legend */}
-          <div className="speaker-legend">
-            {speakers.map((speakerNum) => {
-              const num = parseInt(speakerNum);
-              const displayNum = num + 1;
-              const color = getSpeakerColor(num);
-              return (
-                <div key={speakerNum} className="legend-item">
-                  <div
-                    className="legend-avatar"
-                    style={{ backgroundColor: color }}
-                  >
-                    S{displayNum}
-                  </div>
-                  <span>Спикер {displayNum}</span>
-                </div>
-              );
-            })}
-          </div>
+          <SpeakerLegend speakers={speakers} />
 
           {/* Speaker Blocks */}
           <div className="speaker-blocks">

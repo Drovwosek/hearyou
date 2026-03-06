@@ -1,64 +1,107 @@
-import React from 'react';
-import type { HistoryItem } from '../types';
+import React, { useState } from 'react';
+import HistoryItem from './HistoryItem';
+import { useHistory } from '../hooks/useHistory';
+import type { TranscriptionResult } from '../types';
 import './History.css';
 
 interface HistoryProps {
-  items: HistoryItem[];
-  onLoad: (item: HistoryItem) => void;
-  onClear: () => void;
+  onLoad: (result: TranscriptionResult) => void;
 }
 
-const History: React.FC<HistoryProps> = ({ items, onLoad, onClear }) => {
-  if (items.length === 0) return null;
+const History: React.FC<HistoryProps> = ({ onLoad }) => {
+  const { history, loading, error, fetchHistory, loadTranscription } = useHistory();
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 
-  const formatDate = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+  const handleItemClick = async (item: any) => {
+    if (item.status !== 'completed') {
+      alert('Эта транскрипция ещё не завершена');
+      return;
+    }
 
-    if (diffMins < 60) return `${diffMins} мин назад`;
-    if (diffHours < 24) return `${diffHours} ч назад`;
-    if (diffDays < 7) return `${diffDays} дн назад`;
-
-    return date.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    setLoadingTaskId(item.task_id);
+    
+    try {
+      const result = await loadTranscription(item.task_id);
+      onLoad(result);
+      
+      // Scroll to result after a brief delay
+      setTimeout(() => {
+        document.querySelector('.result-section')?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }, 100);
+    } catch (err) {
+      alert(`Не удалось загрузить результат: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoadingTaskId(null);
+    }
   };
+
+  if (history.length === 0 && !loading) {
+    return null;
+  }
 
   return (
     <div className="history-section">
-      <div className="history-header">
-        <h2>📜 История транскрибаций</h2>
-        <button className="clear-history-btn" onClick={onClear}>
-          🗑️ Очистить
+      <div className="history-header" onClick={() => setIsExpanded(!isExpanded)}>
+        <h2>
+          <span className="history-icon">📜</span>
+          История транскрибаций
+          {history.length > 0 && (
+            <span className="history-badge">{history.length}</span>
+          )}
+        </h2>
+        <button className="history-toggle" aria-label="Toggle history">
+          {isExpanded ? '▼' : '▶'}
         </button>
       </div>
 
-      <div className="history-list">
-        {items.map((item) => (
-          <div
-            key={item.task_id}
-            className="history-item"
-            onClick={() => onLoad(item)}
-          >
-            <div className="history-item-content">
-              <div className="history-filename">📄 {item.filename}</div>
-              <div className="history-meta">
-                <span className="history-time">🕐 {formatDate(item.timestamp)}</span>
-                {item.speaker_labeling && <span className="history-badge">🎭</span>}
-                {item.jtbd_analysis && <span className="history-badge">🎯</span>}
-              </div>
+      {isExpanded && (
+        <div className="history-content">
+          {loading && history.length === 0 ? (
+            <div className="history-loading">
+              <div className="spinner"></div>
+              <span>Загрузка истории...</span>
             </div>
-            <div className="history-arrow">→</div>
-          </div>
-        ))}
-      </div>
+          ) : error ? (
+            <div className="history-error">
+              <span className="error-icon">⚠️</span>
+              <span>{error}</span>
+              <button onClick={fetchHistory} className="retry-button">
+                Повторить
+              </button>
+            </div>
+          ) : history.length === 0 ? (
+            <div className="history-empty">
+              <span className="empty-icon">📭</span>
+              <p>История пуста</p>
+            </div>
+          ) : (
+            <div className="history-list">
+              {history.map((item) => (
+                <div key={item.task_id} className="history-item-wrapper">
+                  <HistoryItem item={item} onClick={handleItemClick} />
+                  {loadingTaskId === item.task_id && (
+                    <div className="loading-overlay">
+                      <div className="spinner-small"></div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {!loading && !error && history.length > 0 && (
+            <div className="history-footer">
+              <button onClick={fetchHistory} className="refresh-button" disabled={loading}>
+                🔄 Обновить
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

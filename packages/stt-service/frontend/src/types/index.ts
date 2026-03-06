@@ -8,6 +8,17 @@ export interface TranscriptionResult {
   jtbd?: JTBDResult;
 }
 
+export interface SpeakerMessage {
+  speakerNum: number;
+  text: string;
+}
+
+export interface SpeakerInfo {
+  speakerNum: number;
+  displayNum: number;
+  color: string;
+}
+
 export interface JTBDResult {
   jobs?: Array<{
     job: string;

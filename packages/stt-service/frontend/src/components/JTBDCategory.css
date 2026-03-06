@@ -1,0 +1,132 @@
+.jtbd-category {
+  margin-bottom: 24px;
+}
+
+.jtbd-category-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, var(--category-color, #6366f1), var(--category-color, #6366f1)dd);
+  color: white;
+  border-radius: 12px 12px 0 0;
+}
+
+.jtbd-category-icon {
+  font-size: 24px;
+}
+
+.jtbd-category-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.jtbd-category-count {
+  background: rgba(255, 255, 255, 0.25);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.jtbd-category-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+}
+
+.jtbd-category-item {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid var(--category-color, #6366f1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.jtbd-category-item:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+  transform: translateX(4px);
+}
+
+.jtbd-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.jtbd-item-primary {
+  color: #212529;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.jtbd-item-badge {
+  background: var(--category-color, #6366f1);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.jtbd-item-context {
+  margin: 8px 0;
+  color: #495057;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.jtbd-item-context strong {
+  color: #212529;
+}
+
+.jtbd-item-quote {
+  margin: 12px 0 0;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-left: 3px solid var(--category-color, #6366f1);
+  border-radius: 4px;
+  font-style: italic;
+  color: #6c757d;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .jtbd-category-header {
+    padding: 12px;
+  }
+
+  .jtbd-category-title {
+    font-size: 16px;
+  }
+
+  .jtbd-category-items {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .jtbd-category-item {
+    padding: 12px;
+  }
+
+  .jtbd-item-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .jtbd-item-primary {
+    font-size: 15px;
+  }
+}

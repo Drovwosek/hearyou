@@ -26,8 +26,8 @@ const StatusTracker: React.FC<StatusTrackerProps> = ({
 }) => {
   const [currentStatus, setCurrentStatus] = useState<StatusData | null>(null);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const timeIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const timeIntervalRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
