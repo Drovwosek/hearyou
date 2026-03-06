@@ -57,39 +57,6 @@
   overflow-y: auto;
 }
 
-.speaker-legend {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 20px;
-  padding: 12px;
-  background: #f9fafb;
-  border-radius: 8px;
-  flex-wrap: wrap;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.legend-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 13px;
-}
-
-.legend-item span {
-  font-weight: 600;
-  color: #374151;
-}
-
 .speaker-blocks {
   display: flex;
   flex-direction: column;
