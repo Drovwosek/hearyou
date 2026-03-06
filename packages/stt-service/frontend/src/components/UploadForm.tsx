@@ -2,7 +2,12 @@ import React, { useState, useRef } from 'react';
 import './UploadForm.css';
 
 interface UploadFormProps {
-  onUpload: (file: File, speakerLabeling: boolean, jtbdAnalysis: boolean) => void;
+  onUpload: (
+    file: File,
+    speakerLabeling: boolean,
+    jtbdAnalysis: boolean,
+    qualityMode: 'fast' | 'quality'
+  ) => void;
   disabled: boolean;
   status: string;
 }
@@ -13,6 +18,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUpload, disabled, status }) =
   const [file, setFile] = useState<File | null>(null);
   const [speakerLabeling, setSpeakerLabeling] = useState(false);
   const [jtbdAnalysis, setJtbdAnalysis] = useState(false);
+  const [qualityMode, setQualityMode] = useState<'fast' | 'quality'>('quality');
   const [validationError, setValidationError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -66,7 +72,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUpload, disabled, status }) =
 
   const handleSubmit = () => {
     if (file && !validationError) {
-      onUpload(file, speakerLabeling, jtbdAnalysis);
+      onUpload(file, speakerLabeling, jtbdAnalysis, qualityMode);
     }
   };
 
@@ -74,6 +80,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUpload, disabled, status }) =
     setFile(null);
     setSpeakerLabeling(false);
     setJtbdAnalysis(false);
+    setQualityMode('quality');
     setValidationError('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -107,6 +114,34 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUpload, disabled, status }) =
           📄 Выбран файл: <strong>{file.name}</strong> ({formatFileSize(file.size)})
         </div>
       )}
+
+      <div className="quality-mode">
+        <label className="mode-label">Режим качества:</label>
+        <div className="mode-options">
+          <label className="mode-item">
+            <input
+              type="radio"
+              name="qualityMode"
+              value="fast"
+              checked={qualityMode === 'fast'}
+              onChange={(e) => setQualityMode(e.target.value as 'fast' | 'quality')}
+              disabled={disabled}
+            />
+            <span>⚡ Быстрый (до 1 мин)</span>
+          </label>
+          <label className="mode-item">
+            <input
+              type="radio"
+              name="qualityMode"
+              value="quality"
+              checked={qualityMode === 'quality'}
+              onChange={(e) => setQualityMode(e.target.value as 'fast' | 'quality')}
+              disabled={disabled}
+            />
+            <span>🎯 Качественный (без лимитов)</span>
+          </label>
+        </div>
+      </div>
 
       <div className="toggles">
         <label className="toggle-item">

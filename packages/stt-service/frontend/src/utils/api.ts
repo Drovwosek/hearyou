@@ -3,12 +3,14 @@ import type { StatusUpdate, HistoryItem } from '../types';
 export const uploadFile = async (
   file: File,
   speakerLabeling: boolean,
-  jtbdAnalysis: boolean
+  jtbdAnalysis: boolean,
+  qualityMode: 'fast' | 'quality' = 'quality'
 ): Promise<string> => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('speaker_labeling', speakerLabeling.toString());
   formData.append('jtbd_analysis', jtbdAnalysis.toString());
+  formData.append('quality_mode', qualityMode);
 
   const response = await fetch('/transcribe', {
     method: 'POST',
