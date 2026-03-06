@@ -3,7 +3,7 @@ import UploadForm from './components/UploadForm';
 import ProgressBar from './components/ProgressBar';
 import TranscriptionResult from './components/TranscriptionResult';
 import JTBDAnalysis from './components/JTBDAnalysis';
-import History from './components/History';
+// import History from './components/History'; // DISABLED: История отключена
 import {
   uploadFile,
   createEventSource,
@@ -71,7 +71,8 @@ function App() {
   const handleUpload = async (
     file: File,
     speakerLabeling: boolean,
-    jtbdAnalysis: boolean
+    jtbdAnalysis: boolean,
+    qualityMode: 'fast' | 'quality'
   ) => {
     setUploading(true);
     setResult(null);
@@ -82,7 +83,7 @@ function App() {
     try {
       setStatus('<span class="info">📤 Загрузка файла...</span>');
 
-      const taskId = await uploadFile(file, speakerLabeling, jtbdAnalysis);
+      const taskId = await uploadFile(file, speakerLabeling, jtbdAnalysis, qualityMode);
 
       const uploadTime = ((Date.now() - startTimeRef.current) / 1000).toFixed(1);
       setStatus(`<span class="success">✓ Файл загружен за ${uploadTime}с</span>`);
@@ -150,9 +151,9 @@ function App() {
             setShowProgress(false);
             setUploading(false);
 
-            // Save to history
-            saveToHistory(taskId, filename, speakerLabeling, jtbdAnalysis);
-            setHistory(getHistory());
+            // DISABLED: История отключена
+            // saveToHistory(taskId, filename, speakerLabeling, jtbdAnalysis);
+            // setHistory(getHistory());
 
             // Scroll to result
             setTimeout(() => {
@@ -179,16 +180,17 @@ function App() {
     );
   };
 
-  const handleLoadHistory = (item: HistoryItem) => {
-    handleLoadResult(item.task_id);
-  };
+  // DISABLED: История отключена
+  // const handleLoadHistory = (item: HistoryItem) => {
+  //   handleLoadResult(item.task_id);
+  // };
 
-  const handleClearHistory = () => {
-    if (confirm('Вы уверены, что хотите очистить историю?')) {
-      clearHistory();
-      setHistory([]);
-    }
-  };
+  // const handleClearHistory = () => {
+  //   if (confirm('Вы уверены, что хотите очистить историю?')) {
+  //     clearHistory();
+  //     setHistory([]);
+  //   }
+  // };
 
   return (
     <div className="container">
@@ -207,7 +209,8 @@ function App() {
         </div>
       )}
 
-      <History items={history} onLoad={handleLoadHistory} onClear={handleClearHistory} />
+      {/* DISABLED: История отключена */}
+      {/* <History items={history} onLoad={handleLoadHistory} onClear={handleClearHistory} /> */}
     </div>
   );
 }

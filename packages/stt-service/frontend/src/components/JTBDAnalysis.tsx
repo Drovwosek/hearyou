@@ -56,13 +56,6 @@ const JTBDAnalysis: React.FC<JTBDAnalysisProps> = ({ jtbd }) => {
               <JTBDCategory key={idx} category={category} />
             ))}
           </div>
-
-          {jtbd.summary && (
-            <div className="jtbd-summary">
-              <h3>📝 Резюме</h3>
-              <p>{jtbd.summary}</p>
-            </div>
-          )}
         </div>
       )}
     </div>
