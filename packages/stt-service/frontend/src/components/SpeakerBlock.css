@@ -1,0 +1,41 @@
+.speaker-block {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+  align-items: flex-start;
+}
+
+.speaker-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--speaker-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.speaker-bubble {
+  flex: 1;
+  background: #f9fafb;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border-left: 3px solid var(--speaker-color);
+}
+
+.speaker-name {
+  font-weight: 600;
+  color: var(--speaker-color);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.speaker-text {
+  color: #374151;
+  line-height: 1.5;
+  font-size: 15px;
+}

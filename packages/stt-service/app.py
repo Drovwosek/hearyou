@@ -183,6 +183,9 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": f"Internal server error: {str(exc)}"}
     )
 
+# Mount static files for React build
+app.mount("/assets", StaticFiles(directory="static/dist/assets"), name="assets")
+
 # Конфигурация
 UPLOAD_DIR = Path("uploads")
 RESULTS_DIR = Path("results")
@@ -771,7 +774,8 @@ async def root(response: Response):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     
-    html_path = Path(__file__).parent / "static" / "index.html"
+    # Serve React build
+    html_path = Path(__file__).parent / "static" / "dist" / "index.html"
     if html_path.exists():
         return html_path.read_text(encoding='utf-8')
     

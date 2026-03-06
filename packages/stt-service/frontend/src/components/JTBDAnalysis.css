@@ -1,0 +1,92 @@
+.jtbd-section {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.jtbd-section h2 {
+  font-size: 22px;
+  color: #333;
+  margin-bottom: 0;
+}
+
+.jtbd-category {
+  margin-top: 25px;
+}
+
+.jtbd-category h3 {
+  font-size: 18px;
+  color: #374151;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.jtbd-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jtbd-card {
+  background: #f9fafb;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 3px solid #2563eb;
+}
+
+.jtbd-card.pain {
+  border-left-color: #dc2626;
+}
+
+.jtbd-card.gain {
+  border-left-color: #16a34a;
+}
+
+.jtbd-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.jtbd-card-header strong {
+  color: #111827;
+  font-size: 16px;
+}
+
+.severity,
+.value {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.severity {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.value {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.jtbd-card-content p {
+  color: #4b5563;
+  font-size: 14px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.jtbd-quote {
+  margin-top: 10px;
+  padding: 10px 15px;
+  background: white;
+  border-left: 3px solid #d1d5db;
+  font-style: italic;
+  color: #6b7280;
+  font-size: 13px;
+}
