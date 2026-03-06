@@ -75,11 +75,24 @@
   }
 }
 
+.progress-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 70px;
+  align-items: flex-end;
+}
+
 .progress-percentage {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: #2563eb;
-  min-width: 45px;
-  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+.progress-eta {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
   font-family: 'Courier New', monospace;
 }

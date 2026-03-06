@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './ProgressBar.css';
 
 interface ProgressBarProps {
@@ -7,6 +7,7 @@ interface ProgressBarProps {
   message?: string;
   showPercentage?: boolean;
   animated?: boolean;
+  startTime?: number;
 }
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
@@ -15,7 +16,36 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   message,
   showPercentage = true,
   animated = true,
+  startTime,
 }) => {
+  const [eta, setEta] = useState<string>('');
+
+  useEffect(() => {
+    if (!startTime || progress <= 0 || progress >= 100) {
+      setEta('');
+      return;
+    }
+
+    const elapsed = (Date.now() - startTime) / 1000; // seconds
+    const rate = progress / elapsed; // % per second
+    const remaining = (100 - progress) / rate; // seconds
+
+    if (remaining > 0 && isFinite(remaining)) {
+      if (remaining < 60) {
+        setEta(`~${Math.round(remaining)}с`);
+      } else if (remaining < 3600) {
+        const minutes = Math.round(remaining / 60);
+        setEta(`~${minutes}м`);
+      } else {
+        const hours = Math.floor(remaining / 3600);
+        const minutes = Math.round((remaining % 3600) / 60);
+        setEta(`~${hours}ч ${minutes}м`);
+      }
+    } else {
+      setEta('');
+    }
+  }, [progress, startTime]);
+
   if (!visible) return null;
 
   return (
@@ -33,8 +63,15 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
         </div>
         
         {showPercentage && (
-          <div className="progress-percentage">
-            {Math.round(progress)}%
+          <div className="progress-stats">
+            <div className="progress-percentage">
+              {Math.round(progress)}%
+            </div>
+            {eta && (
+              <div className="progress-eta">
+                {eta}
+              </div>
+            )}
           </div>
         )}
       </div>
