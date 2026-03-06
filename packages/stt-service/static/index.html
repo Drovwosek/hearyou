@@ -8,7 +8,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <meta name="version" content="2026-03-06-105100">
+    <meta name="version" content="2026-03-06-105900">
     
     <title>HearYou - Транскрибация</title>
     <style>
@@ -1104,20 +1104,7 @@
                     
                     const displayNum = parseInt(speakerNum) + 1;
                     
-                    html += `
-                        <div class="speaker-block ${speakerClass}">
-                            <div class="speaker-avatar ${speakerClass}">S${displayNum}</div>
-                            <div class="speaker-content">
-                                <div class="speaker-label">
-                                    <span class="speaker-name">Спикер ${displayNum}</span>
-                                    <span class="speaker-badge ${speakerClass}">S${displayNum}</span>
-                                </div>
-                                <div class="speaker-bubble">
-                                    <div class="speaker-text">${content}</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
+                    html += `<div class="speaker-block ${speakerClass}"><div class="speaker-avatar ${speakerClass}">S${displayNum}</div><div class="speaker-content"><div class="speaker-label"><span class="speaker-name">Спикер ${displayNum}</span><span class="speaker-badge ${speakerClass}">S${displayNum}</span></div><div class="speaker-bubble"><div class="speaker-text">${content}</div></div></div></div>`;
                 } else if (line.trim()) {
                     html += `<div style="margin: 20px 0; padding: 12px; background: #f9fafb; border-radius: 6px; color: #6b7280; font-style: italic;">${line}</div>`;
                 }
