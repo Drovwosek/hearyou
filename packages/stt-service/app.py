@@ -702,7 +702,7 @@ async def process_audio_file(
         result_file = RESULTS_DIR / f"{task_id}.json"
         result_data = {
             "task_id": task_id,
-            "text": text,
+            "result": text,  # ✅ Фронт ждёт именно "result"
             "original_filename": tasks_status[task_id]["filename"],
             "timestamp": datetime.now().isoformat(),
             "options": options,

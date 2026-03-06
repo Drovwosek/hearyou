@@ -8,7 +8,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <meta name="version" content="2026-02-28-071200">
+    <meta name="version" content="2026-03-06-084800">
     
     <title>HearYou - Транскрибация</title>
     <style>
@@ -429,6 +429,11 @@
             gap: 20px;
         }
         
+        /* Когда JTBD отключён - одна колонка на всю ширину */
+        .results-grid.single-column {
+            grid-template-columns: 1fr !important;
+        }
+        
         @media (min-width: 1200px) {
             .results-grid {
                 grid-template-columns: 1fr 1fr;
@@ -777,6 +782,7 @@
             historySection.style.display = 'none';
             resultSection.style.display = 'none';
             jtbdSection.style.display = 'none';
+            document.getElementById('resultsGrid').classList.add('single-column');
             
             try {
                 const response = await fetch(`/result/${taskId}`);
@@ -866,6 +872,7 @@
             jtbdSection.style.display = 'none';
             historySection.style.display = 'none';
             progressBar.style.display = 'none';
+            document.getElementById('resultsGrid').classList.add('single-column');
 
             const formData = new FormData();
             formData.append('file', file);
@@ -1019,9 +1026,14 @@
             resultSection.style.display = 'block';
             
             // Show JTBD results if available
+            const resultsGrid = document.getElementById('resultsGrid');
             if (jtbdAnalysis && jtbdData) {
                 showJTBD(jtbdData);
                 jtbdSection.style.display = 'block';
+                resultsGrid.classList.remove('single-column');
+            } else {
+                jtbdSection.style.display = 'none';
+                resultsGrid.classList.add('single-column');
             }
             
             uploadBtn.disabled = false;
