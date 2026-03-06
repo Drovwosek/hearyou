@@ -11,7 +11,7 @@ services:
     volumes:
       - ./uploads-test:/app/uploads
       - ./results-test:/app/results
-      - ./static:/app/static:ro
+      - ./static-test:/app/static:ro
       - ./temp-test:/app/temp
       - ./logs-test:/app/logs
     env_file:
