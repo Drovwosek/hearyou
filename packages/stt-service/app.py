@@ -654,9 +654,9 @@ async def process_audio_file(
                     logger.info(f"Task {task_id}: running {backend_name} diarization (fast mode)")
                     speaker_segments = diarizer.diarize(str(audio_to_send), num_speakers=None)
                     
-                    # Фильтруем короткие сегменты (< 5% времени)
+                    # Фильтруем короткие сегменты (< 2% времени)
                     if speaker_segments:
-                        speaker_segments = filter_short_segments(speaker_segments, min_duration_ratio=0.05)
+                        speaker_segments = filter_short_segments(speaker_segments, min_duration_ratio=0.02)
                         logger.info(f"Task {task_id}: {len(speaker_segments)} segments after filtering")
                     
                     used_backend = DIARIZATION_BACKEND
@@ -741,9 +741,9 @@ async def process_audio_file(
                         logger.info(f"Task {task_id}: starting {backend_name} diarization")
                         result = diarizer.diarize(str(audio_to_send), num_speakers=None)
                         
-                        # Фильтруем короткие сегменты (< 5% времени)
+                        # Фильтруем короткие сегменты (< 2% времени)
                         if result:
-                            result = filter_short_segments(result, min_duration_ratio=0.05)
+                            result = filter_short_segments(result, min_duration_ratio=0.02)
                             logger.info(f"Task {task_id}: {len(result)} segments after filtering")
                         
                         return (result, DIARIZATION_BACKEND)  # Возвращаем также backend для правильного merge/format
@@ -757,9 +757,9 @@ async def process_audio_file(
                                 fallback_diarizer = SpeakerDiarizationResemblyzer()
                                 result = fallback_diarizer.diarize(str(audio_to_send), num_speakers=None)
                                 
-                                # Фильтруем короткие сегменты (< 5% времени)
+                                # Фильтруем короткие сегменты (< 2% времени)
                                 if result:
-                                    result = filter_short_segments(result, min_duration_ratio=0.05)
+                                    result = filter_short_segments(result, min_duration_ratio=0.02)
                                     logger.info(f"Task {task_id}: {len(result)} segments after filtering (fallback)")
                                 
                                 return (result, "resemblyzer")  # Указываем что использовался resemblyzer
