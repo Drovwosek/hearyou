@@ -796,8 +796,11 @@ async def process_audio_file(
         result_data = {
             "task_id": task_id,
             "result": text,  # ✅ Фронт ждёт именно "result"
+            "filename": tasks_status[task_id]["filename"],
             "original_filename": tasks_status[task_id]["filename"],
             "timestamp": datetime.now().isoformat(),
+            "speaker_labeling": options.get("speaker_labeling", False),
+            "jtbd_analysis": options.get("analyze_jtbd", False),
             "options": options,
             "raw_result": result,
             "jtbd": jtbd_result,
