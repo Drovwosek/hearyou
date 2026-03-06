@@ -195,7 +195,7 @@ function App() {
   return (
     <div className="container">
       <UploadForm onUpload={handleUpload} disabled={uploading} status={status} />
-      <ProgressBar progress={progress} visible={showProgress} />
+      <ProgressBar progress={progress} visible={showProgress} startTime={startTimeRef.current} />
 
       {result && (
         <div className={`results-grid ${result.jtbd ? '' : 'single-column'}`}>
