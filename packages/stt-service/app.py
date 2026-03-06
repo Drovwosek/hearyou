@@ -566,122 +566,192 @@ async def process_audio_file(
         
         audio_to_send = temp_file
         
-        tasks_status[task_id]["progress"] = 50
-        tasks_status[task_id]["message"] = "Загрузка в облако..."
+        # Choose transcription method based on quality_mode
+        quality_mode = options.get("quality_mode", "quality")
+        logger.info(f"Task {task_id}: quality_mode = {quality_mode}")
         
-        # Асинхронная транскрибация (поддержка больших файлов)
-        logger.info(f"Starting async transcription for task {task_id}")
-        
-        # Запускаем Yandex STT
-        # speaker_labeling не поддерживается в transcribe_async - используем Resemblyzer отдельно
-        operation_id = stt.transcribe_async(
-            str(audio_to_send),
-            language=options.get("language", "ru-RU"),
-            punctuation=options.get("punctuation", True),
-            literature_text=options.get("literature", False),
-            auto_upload=True,
-            # hints=DEFAULT_HINTS,  # Не поддерживается в async API
-        )
-        
-        logger.info(f"Task {task_id}: operation_id = {operation_id}")
-        
-        # Если нужна диаризация - запускаем Resemblyzer параллельно
-        speaker_segments = None
-        if options.get("speaker_labeling", False):
-            tasks_status[task_id]["message"] = "Транскрипция + определение спикеров..."
-            tasks_status[task_id]["progress"] = 60
+        # ========== FAST MODE: Sync API (< 1 min) ==========
+        if quality_mode == "fast":
+            tasks_status[task_id]["progress"] = 50
+            tasks_status[task_id]["message"] = "Быстрая транскрибация..."
+            logger.info(f"Task {task_id}: using FAST mode (sync API)")
             
-            # Запускаем диаризацию параллельно с Yandex
-            async def run_diarization():
+            # Check file size (sync API limit: 1 MB)
+            file_size = Path(audio_to_send).stat().st_size
+            if file_size > 1 * 1024 * 1024:  # 1 MB
+                raise ValueError(
+                    f"Fast режим поддерживает файлы до 1 МБ. "
+                    f"Ваш файл: {file_size / (1024*1024):.1f} МБ. "
+                    f"Используйте Quality режим для больших файлов."
+                )
+            
+            # Transcribe using sync API
+            result = stt.transcribe_sync(
+                str(audio_to_send),
+                language=options.get("language", "ru-RU"),
+                punctuation=options.get("punctuation", True),
+                literature_text=options.get("literature", False),
+                format="oggopus",
+            )
+            
+            tasks_status[task_id]["progress"] = 70
+            
+            # Speaker labeling (if requested)
+            speaker_segments = None
+            if options.get("speaker_labeling", False):
+                tasks_status[task_id]["message"] = "Определение спикеров..."
+                tasks_status[task_id]["progress"] = 75
+                
                 try:
                     backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
-                    logger.info(f"Task {task_id}: starting {backend_name} diarization")
-                    result = diarizer.diarize(str(audio_to_send), num_speakers=2)
-                    return (result, DIARIZATION_BACKEND)  # Возвращаем также backend для правильного merge/format
+                    logger.info(f"Task {task_id}: running {backend_name} diarization (fast mode)")
+                    speaker_segments = diarizer.diarize(str(audio_to_send), num_speakers=2)
+                    used_backend = DIARIZATION_BACKEND
                 except Exception as e:
-                    logger.warning(f"Task {task_id}: {DIARIZATION_BACKEND} diarization failed: {e}")
+                    logger.warning(f"Task {task_id}: diarization failed: {e}")
+                    speaker_segments = None
+                    used_backend = None
+            
+            # Format text with speakers
+            if speaker_segments and options.get("speaker_labeling", False):
+                try:
+                    # Extract words from sync API result
+                    all_words = []
+                    for chunk in result.get('chunks', []):
+                        for alt in chunk.get('alternatives', []):
+                            all_words.extend(alt.get('words', []))
                     
-                    # Fallback: если pyannote упала, пробуем resemblyzer
-                    if DIARIZATION_BACKEND == "pyannote":
-                        try:
-                            logger.info(f"Task {task_id}: falling back to resemblyzer")
-                            fallback_diarizer = SpeakerDiarizationResemblyzer()
-                            result = fallback_diarizer.diarize(str(audio_to_send), num_speakers=2)
-                            return (result, "resemblyzer")  # Указываем что использовался resemblyzer
-                        except Exception as fallback_error:
-                            logger.error(f"Task {task_id}: fallback diarization also failed: {fallback_error}")
+                    # Merge with speaker labels
+                    if used_backend == "resemblyzer":
+                        merge_fn = merge_resemblyzer
+                        format_fn = format_resemblyzer
+                    else:
+                        merge_fn = merge_transcription_with_speakers
+                        format_fn = format_speakers_dialogue
                     
-                    return (None, None)
-            
-            # Запускаем оба процесса параллельно
-            diarization_task = asyncio.create_task(run_diarization())
-            
-            # Ждём Yandex
-            tasks_status[task_id]["progress"] = 70
-            result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
-            
-            # Ждём диаризацию
-            tasks_status[task_id]["message"] = "Объединение результатов..."
-            tasks_status[task_id]["progress"] = 75
-            diarization_result = await diarization_task
-            speaker_segments, used_backend = diarization_result if diarization_result else (None, None)
-            
-        else:
-            # Без диаризации - просто ждём транскрипцию
-            tasks_status[task_id]["message"] = "Транскрибация (ожидание результата)..."
-            tasks_status[task_id]["progress"] = 60
-            result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
-        
-        # Удаляем временный файл из Object Storage
-        try:
-            object_name = Path(audio_to_send).name
-            stt.delete_from_storage(object_name)
-            logger.info(f"Task {task_id}: cleaned up S3 file {object_name}")
-        except Exception as e:
-            logger.warning(f"Task {task_id}: failed to cleanup S3 file: {e}")
-        
-        # Форматирование результата
-        if speaker_segments:
-            # Объединяем транскрипцию со спикерами
-            try:
-                # Извлекаем слова из chunks Yandex
-                all_words = []
-                for chunk in result.get('chunks', []):
-                    for alt in chunk.get('alternatives', []):
-                        all_words.extend(alt.get('words', []))
-                
-                # Выбираем функции merge/format в зависимости от backend
-                if used_backend == "resemblyzer":
-                    merge_fn = merge_resemblyzer
-                    format_fn = format_resemblyzer
-                else:
-                    merge_fn = merge_transcription_with_speakers
-                    format_fn = format_speakers_dialogue
-                
-                # Объединяем с диаризацией
-                words_with_speakers = merge_fn(all_words, speaker_segments)
-                
-                # Форматируем как диалог
-                text = format_fn(words_with_speakers)
-                
-                # Сохраняем enriched data
-                result['words_with_speakers'] = words_with_speakers
-                result['speaker_segments'] = speaker_segments
-                
-                logger.info(f"Task {task_id}: merged {len(words_with_speakers)} words with {len(set(s['speaker'] for s in speaker_segments))} speakers")
-            except Exception as e:
-                logger.error(f"Task {task_id}: failed to merge speakers: {e}")
+                    words_with_speakers = merge_fn(all_words, speaker_segments)
+                    text = format_fn(words_with_speakers)
+                    
+                    result['words_with_speakers'] = words_with_speakers
+                    result['speaker_segments'] = speaker_segments
+                    
+                    logger.info(f"Task {task_id}: merged speakers in fast mode")
+                except Exception as e:
+                    logger.error(f"Task {task_id}: failed to merge speakers in fast mode: {e}")
+                    text = result.get('result', '')
+            else:
                 text = result.get('result', '')
-        else:
-            text = result.get('result', '')
         
-        # Очистка из S3
-        try:
-            object_name = Path(audio_to_send).name
-            stt.delete_from_storage(object_name)
-            logger.info(f"Task {task_id}: cleaned up S3 object {object_name}")
-        except Exception as e:
-            logger.warning(f"Task {task_id}: failed to delete from S3: {e}")
+        # ========== QUALITY MODE: Async API (no limits) ==========
+        else:
+            tasks_status[task_id]["progress"] = 50
+            tasks_status[task_id]["message"] = "Загрузка в облако..."
+            
+            # Асинхронная транскрибация (поддержка больших файлов)
+            logger.info(f"Task {task_id}: using QUALITY mode (async API)")
+        
+            # Запускаем Yandex STT
+            # speaker_labeling не поддерживается в transcribe_async - используем Resemblyzer отдельно
+            operation_id = stt.transcribe_async(
+                str(audio_to_send),
+                language=options.get("language", "ru-RU"),
+                punctuation=options.get("punctuation", True),
+                literature_text=options.get("literature", False),
+                auto_upload=True,
+                # hints=DEFAULT_HINTS,  # Не поддерживается в async API
+            )
+            
+            logger.info(f"Task {task_id}: operation_id = {operation_id}")
+            
+            # Если нужна диаризация - запускаем Resemblyzer параллельно
+            speaker_segments = None
+            if options.get("speaker_labeling", False):
+                tasks_status[task_id]["message"] = "Транскрипция + определение спикеров..."
+                tasks_status[task_id]["progress"] = 60
+                
+                # Запускаем диаризацию параллельно с Yandex
+                async def run_diarization():
+                    try:
+                        backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
+                        logger.info(f"Task {task_id}: starting {backend_name} diarization")
+                        result = diarizer.diarize(str(audio_to_send), num_speakers=2)
+                        return (result, DIARIZATION_BACKEND)  # Возвращаем также backend для правильного merge/format
+                    except Exception as e:
+                        logger.warning(f"Task {task_id}: {DIARIZATION_BACKEND} diarization failed: {e}")
+                        
+                        # Fallback: если pyannote упала, пробуем resemblyzer
+                        if DIARIZATION_BACKEND == "pyannote":
+                            try:
+                                logger.info(f"Task {task_id}: falling back to resemblyzer")
+                                fallback_diarizer = SpeakerDiarizationResemblyzer()
+                                result = fallback_diarizer.diarize(str(audio_to_send), num_speakers=2)
+                                return (result, "resemblyzer")  # Указываем что использовался resemblyzer
+                            except Exception as fallback_error:
+                                logger.error(f"Task {task_id}: fallback diarization also failed: {fallback_error}")
+                        
+                        return (None, None)
+                
+                # Запускаем оба процесса параллельно
+                diarization_task = asyncio.create_task(run_diarization())
+                
+                # Ждём Yandex
+                tasks_status[task_id]["progress"] = 70
+                result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
+                
+                # Ждём диаризацию
+                tasks_status[task_id]["message"] = "Объединение результатов..."
+                tasks_status[task_id]["progress"] = 75
+                diarization_result = await diarization_task
+                speaker_segments, used_backend = diarization_result if diarization_result else (None, None)
+                
+            else:
+                # Без диаризации - просто ждём транскрипцию
+                tasks_status[task_id]["message"] = "Транскрибация (ожидание результата)..."
+                tasks_status[task_id]["progress"] = 60
+                result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
+            
+            # Удаляем временный файл из Object Storage
+            try:
+                object_name = Path(audio_to_send).name
+                stt.delete_from_storage(object_name)
+                logger.info(f"Task {task_id}: cleaned up S3 file {object_name}")
+            except Exception as e:
+                logger.warning(f"Task {task_id}: failed to cleanup S3 file: {e}")
+            
+            # Форматирование результата
+            if speaker_segments:
+                # Объединяем транскрипцию со спикерами
+                try:
+                    # Извлекаем слова из chunks Yandex
+                    all_words = []
+                    for chunk in result.get('chunks', []):
+                        for alt in chunk.get('alternatives', []):
+                            all_words.extend(alt.get('words', []))
+                    
+                    # Выбираем функции merge/format в зависимости от backend
+                    if used_backend == "resemblyzer":
+                        merge_fn = merge_resemblyzer
+                        format_fn = format_resemblyzer
+                    else:
+                        merge_fn = merge_transcription_with_speakers
+                        format_fn = format_speakers_dialogue
+                    
+                    # Объединяем с диаризацией
+                    words_with_speakers = merge_fn(all_words, speaker_segments)
+                    
+                    # Форматируем как диалог
+                    text = format_fn(words_with_speakers)
+                    
+                    # Сохраняем enriched data
+                    result['words_with_speakers'] = words_with_speakers
+                    result['speaker_segments'] = speaker_segments
+                    
+                    logger.info(f"Task {task_id}: merged {len(words_with_speakers)} words with {len(set(s['speaker'] for s in speaker_segments))} speakers")
+                except Exception as e:
+                    logger.error(f"Task {task_id}: failed to merge speakers: {e}")
+                    text = result.get('result', '')
+            else:
+                text = result.get('result', '')
         
         tasks_status[task_id]["progress"] = 70
         
@@ -792,6 +862,15 @@ async def favicon():
     if favicon_path.exists():
         return FileResponse(favicon_path, media_type="image/x-icon")
     return JSONResponse(status_code=404, content={"detail": "Favicon not found"})
+
+
+@app.get("/vite.svg")
+async def vite_svg():
+    """Vite logo для React-приложения"""
+    svg_path = Path(__file__).parent / "static" / "dist" / "vite.svg"
+    if svg_path.exists():
+        return FileResponse(svg_path, media_type="image/svg+xml")
+    return JSONResponse(status_code=404, content={"detail": "vite.svg not found"})
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -998,6 +1077,7 @@ async def transcribe(
     corrections: bool = Form(True),
     speaker_labeling: bool = Form(False),
     analyze_jtbd: bool = Form(False),  # JTBD отключен по умолчанию
+    quality_mode: str = Form("quality"),  # "fast" or "quality"
     user: str = Header(None, alias="X-User"),
     x_forwarded_for: str = Header(None, alias="X-Forwarded-For"),
     x_real_ip: str = Header(None, alias="X-Real-IP")
@@ -1013,6 +1093,7 @@ async def transcribe(
     - **clean**: убрать слова-паразиты
     - **corrections**: применять исправления
     - **analyze_jtbd**: анализировать по JTBD фреймворку (Jobs To Be Done)
+    - **quality_mode**: режим качества ("fast" - быстро до 1 мин, "quality" - долго без лимитов)
     """
     
     # 🔍 STEP 1: Получили параметры
@@ -1103,6 +1184,7 @@ async def transcribe(
         "corrections": corrections,
         "speaker_labeling": speaker_labeling,
         "analyze_jtbd": analyze_jtbd,
+        "quality_mode": quality_mode,  # "fast" or "quality"
     }
     logger.info(f"✅ STEP 10: options = {options}")
     
