@@ -17,7 +17,7 @@ import json
 import time
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
 import hashlib
 import shutil
 import re
