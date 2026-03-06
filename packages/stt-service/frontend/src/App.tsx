@@ -8,11 +8,8 @@ import {
   uploadFile,
   createEventSource,
   loadResult,
-  saveToHistory,
-  getHistory,
-  clearHistory,
 } from './utils/api';
-import type { TranscriptionResult as TResult, HistoryItem } from './types';
+import type { TranscriptionResult as TResult } from './types';
 import './App.css';
 
 function App() {
@@ -21,14 +18,10 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
   const [result, setResult] = useState<TResult | null>(null);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
   const startTimeRef = useRef<number>(0);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    // Load history on mount
-    setHistory(getHistory());
-
     // Check URL for task_id (shared links)
     const urlParams = new URLSearchParams(window.location.search);
     const taskId = urlParams.get('task_id');
