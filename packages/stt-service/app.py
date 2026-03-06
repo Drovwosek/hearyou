@@ -40,6 +40,7 @@ sys.path.insert(0, '/root/hearyou')
 
 from core.yandex_stt import YandexSTT
 from core.text_cleaner import TranscriptionCleaner
+from core.audio_preprocessing import preprocess_audio
 
 # JTBD анализатор - опционально (требует anthropic)
 try:
@@ -513,6 +514,25 @@ async def process_audio_file(
         
         import subprocess
         
+        # NEW: Preprocess audio for better quality
+        preprocessed_file = None
+        try:
+            tasks_status[task_id]["progress"] = 15
+            tasks_status[task_id]["message"] = "Улучшение качества аудио..."
+            
+            preprocessed_file = preprocess_audio(
+                str(file_path),
+                output_file=str(TEMP_DIR / f"preprocessed_{task_id}.wav")
+            )
+            
+            # Use preprocessed file as input for conversion
+            audio_input = preprocessed_file
+            logger.info(f"Task {task_id}: audio preprocessed successfully")
+            
+        except Exception as e:
+            logger.warning(f"Task {task_id}: preprocessing failed: {e}, using original file")
+            audio_input = str(file_path)  # Fallback to original
+        
         # Конвертация в OGG Opus (всегда, для гарантии совместимости)
         tasks_status[task_id]["progress"] = 20
         tasks_status[task_id]["message"] = "Конвертация в OGG Opus..."
@@ -522,7 +542,7 @@ async def process_audio_file(
         try:
             subprocess.run([
                 'ffmpeg',
-                '-i', str(file_path),
+                '-i', audio_input,  # Use preprocessed audio
                 '-vn',  # Игнорировать видео
                 '-c:a', 'libopus',
                 '-b:a', '48k',
@@ -719,6 +739,14 @@ async def process_audio_file(
         # Очистка временных файлов
         if audio_to_send != file_path:
             audio_to_send.unlink(missing_ok=True)
+        
+        # Cleanup preprocessed file
+        if preprocessed_file and preprocessed_file != str(file_path):
+            try:
+                Path(preprocessed_file).unlink(missing_ok=True)
+                logger.debug(f"Task {task_id}: cleaned up preprocessed file")
+            except Exception as e:
+                logger.warning(f"Task {task_id}: failed to cleanup preprocessed file: {e}")
         
         tasks_status[task_id]["status"] = "completed"
         tasks_status[task_id]["progress"] = 100
