@@ -1,41 +1,110 @@
+/* CRITICAL: Ultra-compact spacing - do not increase! */
 .speaker-block {
+  margin: 1px 0;
   display: flex;
-  gap: 12px;
-  margin-bottom: 4px;
   align-items: flex-start;
+  gap: 4px;
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .speaker-avatar {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: var(--speaker-color);
-  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 14px;
+  color: white;
+  font-size: 13px;
   flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background: var(--speaker-color);
+}
+
+.speaker-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.speaker-label {
+  font-weight: 600;
+  font-size: 11px;
+  margin-bottom: 0px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.speaker-label .speaker-name {
+  color: #374151;
+}
+
+.speaker-label .speaker-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+  background: var(--speaker-color);
 }
 
 .speaker-bubble {
-  flex: 1;
-  background: #f9fafb;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border-left: 3px solid var(--speaker-color);
+  padding: 2px 8px;
+  border-radius: 8px;
+  line-height: 1.2;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
-.speaker-name {
-  font-weight: 600;
-  color: var(--speaker-color);
-  font-size: 13px;
-  margin-bottom: 4px;
+/* Speaker-specific bubble colors */
+.speaker-block.speaker-0 .speaker-bubble {
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+}
+
+.speaker-block.speaker-1 .speaker-bubble {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.speaker-block.speaker-2 .speaker-bubble {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.speaker-block.speaker-3 .speaker-bubble {
+  background: #fefce8;
+  border: 1px solid #fde047;
+}
+
+.speaker-block.speaker-4 .speaker-bubble {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
 }
 
 .speaker-text {
-  color: #374151;
-  line-height: 1.5;
-  font-size: 15px;
+  color: #1f2937;
+}
+
+/* Mobile: slightly smaller avatar */
+@media (max-width: 768px) {
+  .speaker-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+  
+  .speaker-bubble {
+    padding: 2px 6px;
+  }
+  
+  .speaker-label {
+    font-size: 12px;
+  }
 }
