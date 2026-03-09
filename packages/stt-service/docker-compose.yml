@@ -11,7 +11,9 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./results:/app/results
+      - ./static:/app/static:ro
       - ./.env.yandex:/app/.env.yandex:ro
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "900", "--h11-max-incomplete-event-size", "1073741824"]

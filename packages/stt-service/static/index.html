@@ -27,7 +27,12 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-        input[type="file"] { margin: 15px 0; font-size: 14px; }
+        input[type="file"] { 
+            margin: 15px 0; 
+            font-size: 14px; 
+            width: 100%;
+            max-width: 600px;
+        }
         button {
             padding: 12px 24px;
             font-size: 16px;
@@ -424,13 +429,20 @@
         
         /* Results layout with JTBD */
         .results-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        /* Двухколоночный layout только когда JTBD активен */
+        .results-grid.has-jtbd {
             display: grid;
             grid-template-columns: 1fr;
             gap: 20px;
         }
         
         @media (min-width: 1200px) {
-            .results-grid {
+            .results-grid.has-jtbd {
                 grid-template-columns: 1fr 1fr;
             }
             
@@ -440,14 +452,138 @@
         }
         
         @media (max-width: 768px) {
+            body {
+                padding: 20px 12px;
+            }
+            
+            .container {
+                max-width: 100%;
+            }
+            
+            h1 {
+                font-size: 22px;
+                margin-bottom: 20px;
+            }
+            
+            .upload-section,
+            .result-section,
+            .history-section,
+            .jtbd-section {
+                padding: 20px;
+                border-radius: 6px;
+            }
+            
+            button {
+                padding: 10px 18px;
+                font-size: 15px;
+                width: 100%;
+                margin: 8px 0 !important;
+            }
+            
+            button.secondary {
+                margin-left: 0 !important;
+            }
+            
+            input[type="file"] {
+                font-size: 13px;
+                max-width: 100%;
+            }
+            
+            .options-section {
+                padding: 12px;
+            }
+            
+            .options-section label {
+                font-size: 14px;
+                margin-bottom: 10px;
+            }
+            
+            .result-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .result-header h2 {
+                font-size: 18px;
+            }
+            
+            .result-text {
+                font-size: 14px;
+                max-height: 400px;
+            }
+            
+            .speaker-block {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .speaker-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            
+            .speaker-bubble {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+            
             .jtbd-category-header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 8px;
+                padding: 8px 12px;
+            }
+            
+            .jtbd-category-title {
+                font-size: 16px;
             }
             
             .jtbd-category-count {
                 align-self: flex-start;
+            }
+            
+            .jtbd-item {
+                padding: 10px 12px;
+                gap: 8px;
+            }
+            
+            .jtbd-item-text {
+                font-size: 14px;
+            }
+            
+            .history-item {
+                padding: 12px;
+            }
+            
+            .history-item-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+        }
+        
+        /* Очень маленькие экраны (старые телефоны) */
+        @media (max-width: 360px) {
+            body {
+                padding: 12px 8px;
+            }
+            
+            h1 {
+                font-size: 20px;
+            }
+            
+            .upload-section,
+            .result-section,
+            .history-section,
+            .jtbd-section {
+                padding: 15px;
+            }
+            
+            button {
+                padding: 8px 14px;
+                font-size: 14px;
             }
         }
     </style>
@@ -835,9 +971,14 @@
             resultSection.style.display = 'block';
             
             // Show JTBD results if available
+            const resultsGrid = document.getElementById('resultsGrid');
             if (jtbdAnalysis && jtbdData) {
                 showJTBD(jtbdData);
                 jtbdSection.style.display = 'block';
+                resultsGrid.classList.add('has-jtbd');
+            } else {
+                jtbdSection.style.display = 'none';
+                resultsGrid.classList.remove('has-jtbd');
             }
             
             uploadBtn.disabled = false;
