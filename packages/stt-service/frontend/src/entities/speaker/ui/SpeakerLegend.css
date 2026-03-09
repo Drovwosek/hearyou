@@ -1,0 +1,51 @@
+.speaker-legend {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 13px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.legend-label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .speaker-legend {
+    gap: 12px;
+    padding: 10px;
+  }
+  
+  .legend-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+  
+  .legend-label {
+    font-size: 13px;
+  }
+}

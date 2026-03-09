@@ -76,10 +76,21 @@ class FillerWordsFilter:
             # Убрать повторяющиеся знаки препинания
             result = re.sub(r'([,.!?])\1+', r'\1', result)
         
-        # Очистить лишние пробелы
-        result = re.sub(r'\s+', ' ', result)
-        result = re.sub(r'\s+([,.!?])', r'\1', result)
-        result = result.strip()
+        # Очистить лишние пробелы (НО СОХРАНИТЬ \n\n для разделения спикеров!)
+        # Разбиваем по \n\n, чистим каждый блок отдельно, соединяем обратно
+        blocks = result.split('\n\n')
+        cleaned_blocks = []
+        
+        for block in blocks:
+            # Убираем лишние пробелы внутри блока
+            block = re.sub(r'[ \t]+', ' ', block)  # Только горизонтальные пробелы
+            block = re.sub(r'\n+', '\n', block)    # Убираем множественные \n (но не \n\n между блоками!)
+            block = re.sub(r'\s+([,.!?])', r'\1', block)
+            block = block.strip()
+            if block:  # Пропускаем пустые блоки
+                cleaned_blocks.append(block)
+        
+        result = '\n\n'.join(cleaned_blocks)
         
         # Заглавная буква в начале
         if result and result[0].islower():

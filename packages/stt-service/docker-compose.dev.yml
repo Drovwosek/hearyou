@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  stt-service:
+    build:
+      context: ../../
+      dockerfile: packages/stt-service/Dockerfile
+    container_name: hearyou-stt
+    ports:
+      - "8000:8000"
+    # env_file для HuggingFace token (опционально)
+    env_file:
+      - .env.huggingface
+    volumes:
+      # LIVE RELOAD: изменения применяются мгновенно!
+      - ../../core:/app/core:ro
+      - ./app.py:/app/app.py:ro
+      - ./speaker_diarization_resemblyzer.py:/app/speaker_diarization_resemblyzer.py:ro
+      - ./speaker_diarization_pyannote.py:/app/speaker_diarization_pyannote.py:ro
+      - ./ispring_hints.py:/app/ispring_hints.py:ro
+      - ./ispring_corrections.json:/app/ispring_corrections.json:ro
+      - ./static:/app/static:ro
+      # Сохраняем данные
+      - ./uploads:/app/uploads
+      - ./results:/app/results
+      - ./temp:/app/temp
+      - ./logs:/app/logs
+    restart: unless-stopped
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 900 --reload
+    # --reload автоматически перезагружает при изменении файлов!

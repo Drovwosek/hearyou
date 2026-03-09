@@ -8,7 +8,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <meta name="version" content="2026-02-28-071200">
+    <meta name="version" content="2026-03-06-105900">
     
     <title>HearYou - Транскрибация</title>
     <style>
@@ -27,12 +27,7 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-        input[type="file"] { 
-            margin: 15px 0; 
-            font-size: 14px; 
-            width: 100%;
-            max-width: 600px;
-        }
+        input[type="file"] { margin: 15px 0; font-size: 14px; }
         button {
             padding: 12px 24px;
             font-size: 16px;
@@ -129,10 +124,10 @@
             cursor: pointer;
         }
         .speaker-block {
-            margin: 20px 0;
+            margin: 1px 0;
             display: flex;
             align-items: flex-start;
-            gap: 12px;
+            gap: 4px;
             animation: fadeIn 0.3s ease-in;
         }
         @keyframes fadeIn {
@@ -140,15 +135,15 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .speaker-avatar {
-            width: 40px;
-            height: 40px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
             color: white;
-            font-size: 16px;
+            font-size: 13px;
             flex-shrink: 0;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
@@ -163,11 +158,11 @@
         }
         .speaker-label {
             font-weight: 600;
-            font-size: 13px;
-            margin-bottom: 6px;
+            font-size: 11px;
+            margin-bottom: 0px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 4px;
         }
         .speaker-label .speaker-name { color: #374151; }
         .speaker-label .speaker-badge {
@@ -183,9 +178,9 @@
         .speaker-badge.speaker-3 { background: #ca8a04; }
         .speaker-badge.speaker-4 { background: #9333ea; }
         .speaker-bubble {
-            padding: 12px 16px;
-            border-radius: 12px;
-            line-height: 1.6;
+            padding: 2px 8px;
+            border-radius: 8px;
+            line-height: 1.2;
             position: relative;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
@@ -429,20 +424,18 @@
         
         /* Results layout with JTBD */
         .results-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
-        /* Двухколоночный layout только когда JTBD активен */
-        .results-grid.has-jtbd {
             display: grid;
             grid-template-columns: 1fr;
             gap: 20px;
         }
         
+        /* Когда JTBD отключён - одна колонка на всю ширину */
+        .results-grid.single-column {
+            grid-template-columns: 1fr !important;
+        }
+        
         @media (min-width: 1200px) {
-            .results-grid.has-jtbd {
+            .results-grid {
                 grid-template-columns: 1fr 1fr;
             }
             
@@ -451,139 +444,200 @@
             }
         }
         
+        /* ============================================ */
+        /* RESPONSIVE DESIGN                            */
+        /* ============================================ */
+
+        /* Tablets (768px - 1199px) */
+        @media (max-width: 1199px) {
+            .container {
+                max-width: 100%;
+                padding: 0 16px;
+            }
+        }
+
+        /* Mobile (< 768px) */
         @media (max-width: 768px) {
             body {
                 padding: 20px 12px;
             }
-            
-            .container {
-                max-width: 100%;
-            }
-            
+
             h1 {
                 font-size: 22px;
                 margin-bottom: 20px;
             }
-            
+
             .upload-section,
             .result-section,
             .history-section,
             .jtbd-section {
-                padding: 20px;
-                border-radius: 6px;
+                padding: 20px 16px;
             }
-            
-            button {
-                padding: 10px 18px;
-                font-size: 15px;
+
+            /* Buttons stacking */
+            .upload-section > button {
+                display: block;
                 width: 100%;
-                margin: 8px 0 !important;
+                margin-bottom: 10px;
             }
-            
             button.secondary {
-                margin-left: 0 !important;
+                margin-left: 0;
+                display: block;
+                width: 100%;
             }
-            
+
+            /* File input */
             input[type="file"] {
+                width: 100%;
                 font-size: 13px;
-                max-width: 100%;
             }
-            
+
+            /* Options section */
             .options-section {
                 padding: 12px;
             }
-            
             .options-section label {
                 font-size: 14px;
-                margin-bottom: 10px;
             }
-            
+
+            /* Result header stacking */
             .result-header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 10px;
             }
-            
-            .result-header h2 {
-                font-size: 18px;
+            .result-header button.secondary {
+                width: auto;
+                display: inline-block;
             }
-            
+
+            /* Result text */
             .result-text {
                 font-size: 14px;
+                padding: 12px;
                 max-height: 400px;
             }
-            
+
+            /* Speaker blocks */
             .speaker-block {
-                flex-direction: column;
-                gap: 8px;
+                gap: 4px;
+                margin: 1px 0;
             }
-            
             .speaker-avatar {
-                width: 32px;
-                height: 32px;
-                font-size: 14px;
+                width: 24px;
+                height: 24px;
+                font-size: 11px;
             }
-            
             .speaker-bubble {
-                padding: 10px 12px;
-                font-size: 14px;
+                padding: 2px 6px;
             }
-            
+            .speaker-label {
+                font-size: 12px;
+            }
+
+            /* JTBD */
+            .jtbd-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            .jtbd-header h2 {
+                font-size: 18px;
+            }
+            .jtbd-header button.secondary {
+                width: auto;
+                display: inline-block;
+            }
             .jtbd-category-header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 8px;
-                padding: 8px 12px;
+                padding: 10px 12px;
             }
-            
             .jtbd-category-title {
                 font-size: 16px;
             }
-            
             .jtbd-category-count {
                 align-self: flex-start;
             }
-            
             .jtbd-item {
-                padding: 10px 12px;
-                gap: 8px;
+                padding: 12px;
             }
-            
             .jtbd-item-text {
                 font-size: 14px;
             }
-            
+
+            /* History items */
             .history-item {
                 padding: 12px;
             }
-            
             .history-item-header {
                 flex-direction: column;
                 align-items: flex-start;
-                gap: 5px;
+                gap: 4px;
+            }
+            .history-item-name {
+                font-size: 14px;
+                word-break: break-all;
+            }
+
+            /* Info line */
+            #resultInfo {
+                font-size: 12px;
+                line-height: 1.8;
             }
         }
-        
-        /* Очень маленькие экраны (старые телефоны) */
-        @media (max-width: 360px) {
+
+        /* Small phones (< 480px) */
+        @media (max-width: 480px) {
             body {
                 padding: 12px 8px;
             }
-            
+
             h1 {
-                font-size: 20px;
+                font-size: 18px;
+                margin-bottom: 16px;
             }
-            
+
             .upload-section,
             .result-section,
             .history-section,
             .jtbd-section {
-                padding: 15px;
+                padding: 16px 12px;
+                border-radius: 6px;
             }
-            
+
             button {
-                padding: 8px 14px;
+                padding: 10px 16px;
                 font-size: 14px;
+            }
+
+            #status {
+                padding: 10px;
+                font-size: 13px;
+            }
+
+            .result-text {
+                font-size: 13px;
+                padding: 10px;
+                max-height: 350px;
+            }
+
+            .speaker-avatar {
+                width: 28px;
+                height: 28px;
+                font-size: 11px;
+            }
+            .speaker-bubble {
+                padding: 8px 10px;
+                font-size: 13px;
+            }
+
+            .jtbd-category-icon {
+                font-size: 20px;
+            }
+            .jtbd-category-title {
+                font-size: 15px;
             }
         }
     </style>
@@ -729,6 +783,7 @@
             historySection.style.display = 'none';
             resultSection.style.display = 'none';
             jtbdSection.style.display = 'none';
+            document.getElementById('resultsGrid').classList.add('single-column');
             
             try {
                 const response = await fetch(`/result/${taskId}`);
@@ -818,6 +873,7 @@
             jtbdSection.style.display = 'none';
             historySection.style.display = 'none';
             progressBar.style.display = 'none';
+            document.getElementById('resultsGrid').classList.add('single-column');
 
             const formData = new FormData();
             formData.append('file', file);
@@ -937,6 +993,9 @@
             
             // Форматирование по спикерам или обычный текст
             if (speakerLabeling && (text.includes('SPEAKER_') || text.includes('Спикер '))) {
+                // Aggregate word-by-word speaker labels into blocks
+                text = aggregateSpeakerText(text);
+                
                 const speakerPattern = /(?:SPEAKER_(\d+)|Спикер (\d+)):/g;
                 const matches = [...text.matchAll(speakerPattern)];
                 const uniqueSpeakers = [...new Set(matches.map(m => m[1] || m[2]))];
@@ -975,10 +1034,10 @@
             if (jtbdAnalysis && jtbdData) {
                 showJTBD(jtbdData);
                 jtbdSection.style.display = 'block';
-                resultsGrid.classList.add('has-jtbd');
+                resultsGrid.classList.remove('single-column');
             } else {
                 jtbdSection.style.display = 'none';
-                resultsGrid.classList.remove('has-jtbd');
+                resultsGrid.classList.add('single-column');
             }
             
             uploadBtn.disabled = false;
@@ -990,6 +1049,45 @@
 
             // Плавная прокрутка к результату
             setTimeout(() => resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        }
+        
+        function aggregateSpeakerText(text) {
+            // Aggregate word-by-word speaker labels into blocks separated by "\n\n"
+            // Input: "SPEAKER_00: word1\nSPEAKER_00: word2\nSPEAKER_01: word3"
+            // Output: "SPEAKER_00: word1 word2\n\nSPEAKER_01: word3"
+            
+            const lines = text.split('\n');
+            let currentSpeaker = null;
+            let currentWords = [];
+            let blocks = [];
+            
+            lines.forEach(line => {
+                const match = line.match(/^(?:SPEAKER_(\d+)|Спикер (\d+)):\s*(.+)/);
+                if (match) {
+                    const speakerNum = match[1] || match[2];
+                    const word = match[3].trim();
+                    
+                    if (speakerNum === currentSpeaker) {
+                        // Same speaker - add word to current block
+                        currentWords.push(word);
+                    } else {
+                        // New speaker - save previous block and start new one
+                        if (currentSpeaker !== null && currentWords.length > 0) {
+                            blocks.push(`SPEAKER_${currentSpeaker}: ${currentWords.join(' ')}`);
+                        }
+                        currentSpeaker = speakerNum;
+                        currentWords = [word];
+                    }
+                }
+            });
+            
+            // Don't forget the last block
+            if (currentSpeaker !== null && currentWords.length > 0) {
+                blocks.push(`SPEAKER_${currentSpeaker}: ${currentWords.join(' ')}`);
+            }
+            
+            // Join blocks with "\n\n" so formatSpeakers() can split them correctly
+            return blocks.join('\n\n');
         }
         
         function formatSpeakers(text) {
@@ -1006,20 +1104,7 @@
                     
                     const displayNum = parseInt(speakerNum) + 1;
                     
-                    html += `
-                        <div class="speaker-block ${speakerClass}">
-                            <div class="speaker-avatar ${speakerClass}">S${displayNum}</div>
-                            <div class="speaker-content">
-                                <div class="speaker-label">
-                                    <span class="speaker-name">Спикер ${displayNum}</span>
-                                    <span class="speaker-badge ${speakerClass}">S${displayNum}</span>
-                                </div>
-                                <div class="speaker-bubble">
-                                    <div class="speaker-text">${content}</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
+                    html += `<div class="speaker-block ${speakerClass}"><div class="speaker-avatar ${speakerClass}">S${displayNum}</div><div class="speaker-content"><div class="speaker-label"><span class="speaker-name">Спикер ${displayNum}</span><span class="speaker-badge ${speakerClass}">S${displayNum}</span></div><div class="speaker-bubble"><div class="speaker-text">${content}</div></div></div></div>`;
                 } else if (line.trim()) {
                     html += `<div style="margin: 20px 0; padding: 12px; background: #f9fafb; border-radius: 6px; color: #6b7280; font-style: italic;">${line}</div>`;
                 }

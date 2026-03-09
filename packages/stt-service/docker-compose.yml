@@ -12,7 +12,9 @@ services:
       - ./uploads:/app/uploads
       - ./results:/app/results
       - ./static:/app/static:ro
-      - ./.env.yandex:/app/.env.yandex:ro
+    env_file:
+      - .env.yandex
+      - .env.huggingface
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped

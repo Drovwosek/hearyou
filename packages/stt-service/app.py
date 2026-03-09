@@ -3,7 +3,7 @@
 HearYou STT Service - FastAPI веб-сервис для транскрибации
 """
 
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Header, Request
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Header, Request, Response
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +17,7 @@ import json
 import time
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
 import hashlib
 import shutil
 import re
@@ -40,6 +40,7 @@ sys.path.insert(0, '/root/hearyou')
 
 from core.yandex_stt import YandexSTT
 from core.text_cleaner import TranscriptionCleaner
+from core.audio_preprocessing import preprocess_audio
 
 # JTBD анализатор - опционально (требует anthropic)
 try:
@@ -50,11 +51,32 @@ except ImportError:
     logger.warning("JTBD Analyzer недоступен: не установлен пакет 'anthropic'")
 
 from ispring_hints import DEFAULT_HINTS
+
+# Импортируем оба backend'а для fallback
 from speaker_diarization_resemblyzer import (
     SpeakerDiarizationResemblyzer,
-    merge_transcription_with_speakers,
-    format_with_speakers as format_speakers_dialogue
+    merge_transcription_with_speakers as merge_resemblyzer,
+    format_with_speakers as format_resemblyzer
 )
+
+# Пробуем загрузить pyannote.audio (state-of-the-art)
+try:
+    from speaker_diarization_pyannote import (
+        SpeakerDiarizationPyannote,
+        merge_transcription_with_speakers as merge_pyannote,
+        format_with_speakers as format_pyannote
+    )
+    DIARIZATION_BACKEND = "pyannote"
+    # Используем pyannote как primary
+    merge_transcription_with_speakers = merge_pyannote
+    format_speakers_dialogue = format_pyannote
+    logger.info("✅ Используется pyannote.audio для speaker diarization")
+except Exception as e:
+    logger.warning(f"⚠️ Не удалось загрузить pyannote, используется fallback: {e}")
+    DIARIZATION_BACKEND = "resemblyzer"
+    # Используем resemblyzer как primary
+    merge_transcription_with_speakers = merge_resemblyzer
+    format_speakers_dialogue = format_resemblyzer
 
 app = FastAPI(
     title="HearYou STT Service",
@@ -162,6 +184,9 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": f"Internal server error: {str(exc)}"}
     )
 
+# Mount static files for React build
+app.mount("/assets", StaticFiles(directory="static/dist/assets"), name="assets")
+
 # Конфигурация
 UPLOAD_DIR = Path("uploads")
 RESULTS_DIR = Path("results")
@@ -197,7 +222,12 @@ stt = YandexSTT(
     s3_bucket=os.getenv('YANDEX_S3_BUCKET', 'hearyou-stt-temp')
 )
 cleaner = TranscriptionCleaner()  # Полный пайплайн очистки (звуки + паразиты + артефакты)
-diarizer = SpeakerDiarizationResemblyzer()  # Speaker diarization через Resemblyzer
+
+# Инициализация speaker diarization
+if DIARIZATION_BACKEND == "pyannote":
+    diarizer = SpeakerDiarizationPyannote()  # Pyannote.audio (state-of-the-art)
+else:
+    diarizer = SpeakerDiarizationResemblyzer()  # Fallback: Resemblyzer
 
 # Инициализация JTBD анализатора (с обработкой ошибок если нет API ключа)
 if JTBD_AVAILABLE:
@@ -210,6 +240,53 @@ if JTBD_AVAILABLE:
 else:
     jtbd_analyzer = None
     logger.info("JTBD Analyzer disabled (anthropic package not installed)")
+
+
+def filter_short_segments(segments: List[Dict], min_duration_ratio: float = 0.05) -> List[Dict]:
+    """
+    Фильтрует короткие сегменты спикеров (вероятные ошибки диаризации)
+    
+    Args:
+        segments: Список сегментов спикеров [{speaker, start, end}, ...]
+        min_duration_ratio: Минимальная доля времени для спикера (0.05 = 5%)
+    
+    Returns:
+        Отфильтрованные сегменты (убраны спикеры с < min_duration_ratio времени)
+    """
+    if not segments:
+        return segments
+    
+    # Вычисляем общую длительность
+    total_duration = max(s['end'] for s in segments)
+    if total_duration == 0:
+        return segments
+    
+    # Вычисляем длительность для каждого спикера
+    speaker_durations = {}
+    for seg in segments:
+        speaker = seg['speaker']
+        duration = seg['end'] - seg['start']
+        speaker_durations[speaker] = speaker_durations.get(speaker, 0) + duration
+    
+    # Находим спикеров которые говорят > min_duration_ratio времени
+    valid_speakers = {
+        speaker for speaker, duration in speaker_durations.items()
+        if duration / total_duration >= min_duration_ratio
+    }
+    
+    # Фильтруем сегменты
+    filtered = [s for s in segments if s['speaker'] in valid_speakers]
+    
+    # Логируем результат
+    removed = len(segments) - len(filtered)
+    if removed > 0:
+        removed_speakers = set(s['speaker'] for s in segments) - valid_speakers
+        logger.info(
+            f"Filtered {removed} short segments from {removed_speakers} "
+            f"(< {min_duration_ratio*100:.1f}% of audio)"
+        )
+    
+    return filtered
 
 
 def format_with_speakers(result_data: dict) -> str:
@@ -484,6 +561,25 @@ async def process_audio_file(
         
         import subprocess
         
+        # NEW: Preprocess audio for better quality
+        preprocessed_file = None
+        try:
+            tasks_status[task_id]["progress"] = 15
+            tasks_status[task_id]["message"] = "Улучшение качества аудио..."
+            
+            preprocessed_file = preprocess_audio(
+                str(file_path),
+                output_file=str(TEMP_DIR / f"preprocessed_{task_id}.wav")
+            )
+            
+            # Use preprocessed file as input for conversion
+            audio_input = preprocessed_file
+            logger.info(f"Task {task_id}: audio preprocessed successfully")
+            
+        except Exception as e:
+            logger.warning(f"Task {task_id}: preprocessing failed: {e}, using original file")
+            audio_input = str(file_path)  # Fallback to original
+        
         # Конвертация в OGG Opus (всегда, для гарантии совместимости)
         tasks_status[task_id]["progress"] = 20
         tasks_status[task_id]["message"] = "Конвертация в OGG Opus..."
@@ -493,7 +589,7 @@ async def process_audio_file(
         try:
             subprocess.run([
                 'ffmpeg',
-                '-i', str(file_path),
+                '-i', audio_input,  # Use preprocessed audio
                 '-vn',  # Игнорировать видео
                 '-c:a', 'libopus',
                 '-b:a', '48k',
@@ -517,100 +613,232 @@ async def process_audio_file(
         
         audio_to_send = temp_file
         
-        tasks_status[task_id]["progress"] = 50
-        tasks_status[task_id]["message"] = "Загрузка в облако..."
+        # Choose transcription method based on quality_mode
+        quality_mode = options.get("quality_mode", "quality")
+        logger.info(f"Task {task_id}: quality_mode = {quality_mode}")
         
-        # Асинхронная транскрибация (поддержка больших файлов)
-        logger.info(f"Starting async transcription for task {task_id}")
-        
-        # Запускаем Yandex STT
-        # speaker_labeling не поддерживается в transcribe_async - используем Resemblyzer отдельно
-        operation_id = stt.transcribe_async(
-            str(audio_to_send),
-            language=options.get("language", "ru-RU"),
-            punctuation=options.get("punctuation", True),
-            literature_text=options.get("literature", False),
-            auto_upload=True,
-            # hints=DEFAULT_HINTS,  # Не поддерживается в async API
-        )
-        
-        logger.info(f"Task {task_id}: operation_id = {operation_id}")
-        
-        # Если нужна диаризация - запускаем Resemblyzer параллельно
-        speaker_segments = None
-        if options.get("speaker_labeling", False):
-            tasks_status[task_id]["message"] = "Транскрипция + определение спикеров..."
-            tasks_status[task_id]["progress"] = 60
+        # ========== FAST MODE: Sync API (< 1 min) ==========
+        if quality_mode == "fast":
+            tasks_status[task_id]["progress"] = 50
+            tasks_status[task_id]["message"] = "Быстрая транскрибация..."
+            logger.info(f"Task {task_id}: using FAST mode (sync API)")
             
-            # Запускаем Resemblyzer диаризацию параллельно с Yandex
-            async def run_diarization():
-                try:
-                    logger.info(f"Task {task_id}: starting Resemblyzer diarization")
-                    return diarizer.diarize(str(audio_to_send), num_speakers=2)
-                except Exception as e:
-                    logger.error(f"Task {task_id}: diarization failed: {e}")
-                    return None
+            # Check file size (sync API limit: 1 MB)
+            file_size = Path(audio_to_send).stat().st_size
+            if file_size > 1 * 1024 * 1024:  # 1 MB
+                raise ValueError(
+                    f"Fast режим поддерживает файлы до 1 МБ. "
+                    f"Ваш файл: {file_size / (1024*1024):.1f} МБ. "
+                    f"Используйте Quality режим для больших файлов."
+                )
             
-            # Запускаем оба процесса параллельно
-            diarization_task = asyncio.create_task(run_diarization())
+            # Transcribe using sync API
+            result = stt.transcribe_sync(
+                str(audio_to_send),
+                language=options.get("language", "ru-RU"),
+                punctuation=options.get("punctuation", True),
+                literature_text=options.get("literature", False),
+                format="oggopus",
+            )
             
-            # Ждём Yandex
             tasks_status[task_id]["progress"] = 70
-            result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
             
-            # Ждём диаризацию
-            tasks_status[task_id]["message"] = "Объединение результатов..."
-            tasks_status[task_id]["progress"] = 75
-            speaker_segments = await diarization_task
+            # Speaker labeling (if requested)
+            speaker_segments = None
+            if options.get("speaker_labeling", False):
+                tasks_status[task_id]["message"] = "Определение спикеров..."
+                tasks_status[task_id]["progress"] = 75
+                
+                try:
+                    backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
+                    logger.info(f"Task {task_id}: running {backend_name} diarization (fast mode)")
+                    speaker_segments = diarizer.diarize(str(audio_to_send), num_speakers=None)
+                    
+                    # Фильтруем короткие сегменты (< 2% времени)
+                    if speaker_segments:
+                        speaker_segments = filter_short_segments(speaker_segments, min_duration_ratio=0.02)
+                        logger.info(f"Task {task_id}: {len(speaker_segments)} segments after filtering")
+                    
+                    used_backend = DIARIZATION_BACKEND
+                except Exception as e:
+                    logger.warning(f"Task {task_id}: diarization failed: {e}")
+                    speaker_segments = None
+                    used_backend = None
             
-        else:
-            # Без диаризации - просто ждём транскрипцию
-            tasks_status[task_id]["message"] = "Транскрибация (ожидание результата)..."
-            tasks_status[task_id]["progress"] = 60
-            result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
-        
-        # Удаляем временный файл из Object Storage
-        try:
-            object_name = Path(audio_to_send).name
-            stt.delete_from_storage(object_name)
-            logger.info(f"Task {task_id}: cleaned up S3 file {object_name}")
-        except Exception as e:
-            logger.warning(f"Task {task_id}: failed to cleanup S3 file: {e}")
-        
-        # Форматирование результата
-        if speaker_segments:
-            # Объединяем транскрипцию со спикерами
-            try:
-                # Извлекаем слова из chunks Yandex
-                all_words = []
-                for chunk in result.get('chunks', []):
-                    for alt in chunk.get('alternatives', []):
-                        all_words.extend(alt.get('words', []))
-                
-                # Объединяем с диаризацией
-                words_with_speakers = merge_transcription_with_speakers(all_words, speaker_segments)
-                
-                # Форматируем как диалог
-                text = format_speakers_dialogue(words_with_speakers)
-                
-                # Сохраняем enriched data
-                result['words_with_speakers'] = words_with_speakers
-                result['speaker_segments'] = speaker_segments
-                
-                logger.info(f"Task {task_id}: merged {len(words_with_speakers)} words with {len(set(s['speaker'] for s in speaker_segments))} speakers")
-            except Exception as e:
-                logger.error(f"Task {task_id}: failed to merge speakers: {e}")
+            # Format text with speakers
+            if speaker_segments and options.get("speaker_labeling", False):
+                try:
+                    # Extract words from sync API result
+                    all_words = []
+                    for chunk in result.get('chunks', []):
+                        for alt in chunk.get('alternatives', []):
+                            all_words.extend(alt.get('words', []))
+                    
+                    # Merge with speaker labels
+                    if used_backend == "resemblyzer":
+                        merge_fn = merge_resemblyzer
+                        format_fn = format_resemblyzer
+                    else:
+                        merge_fn = merge_transcription_with_speakers
+                        format_fn = format_speakers_dialogue
+                    
+                    words_with_speakers = merge_fn(all_words, speaker_segments)
+                    
+                    # Проверяем количество уникальных спикеров
+                    unique_speakers = set(w.get('speaker', 'UNKNOWN') for w in words_with_speakers)
+                    num_speakers = len(unique_speakers)
+                    
+                    logger.info(f"Task {task_id}: merged {len(words_with_speakers)} words with {num_speakers} unique speakers in fast mode: {unique_speakers}")
+                    
+                    # Форматируем как диалог (только если > 1 спикера)
+                    if num_speakers > 1:
+                        text = format_fn(words_with_speakers)
+                        logger.info(f"Task {task_id}: formatted as multi-speaker dialogue")
+                    else:
+                        # Только один спикер - вернуть простой текст без префиксов
+                        text = result.get('result', '')
+                        logger.info(f"Task {task_id}: single speaker detected, using plain text")
+                    
+                    result['words_with_speakers'] = words_with_speakers
+                    result['speaker_segments'] = speaker_segments
+                except Exception as e:
+                    logger.error(f"Task {task_id}: failed to merge speakers in fast mode: {e}")
+                    text = result.get('result', '')
+            else:
                 text = result.get('result', '')
-        else:
-            text = result.get('result', '')
         
-        # Очистка из S3
-        try:
-            object_name = Path(audio_to_send).name
-            stt.delete_from_storage(object_name)
-            logger.info(f"Task {task_id}: cleaned up S3 object {object_name}")
-        except Exception as e:
-            logger.warning(f"Task {task_id}: failed to delete from S3: {e}")
+        # ========== QUALITY MODE: Async API (no limits) ==========
+        else:
+            tasks_status[task_id]["progress"] = 50
+            tasks_status[task_id]["message"] = "Загрузка в облако..."
+            
+            # Асинхронная транскрибация (поддержка больших файлов)
+            logger.info(f"Task {task_id}: using QUALITY mode (async API)")
+        
+            # Запускаем Yandex STT
+            # speaker_labeling не поддерживается в transcribe_async - используем Resemblyzer отдельно
+            operation_id = stt.transcribe_async(
+                str(audio_to_send),
+                language=options.get("language", "ru-RU"),
+                punctuation=options.get("punctuation", True),
+                literature_text=options.get("literature", False),
+                auto_upload=True,
+                # hints=DEFAULT_HINTS,  # Не поддерживается в async API
+            )
+            
+            logger.info(f"Task {task_id}: operation_id = {operation_id}")
+            
+            # Если нужна диаризация - запускаем Resemblyzer параллельно
+            speaker_segments = None
+            if options.get("speaker_labeling", False):
+                tasks_status[task_id]["message"] = "Транскрипция + определение спикеров..."
+                tasks_status[task_id]["progress"] = 60
+                
+                # Запускаем диаризацию параллельно с Yandex
+                async def run_diarization():
+                    try:
+                        backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
+                        logger.info(f"Task {task_id}: starting {backend_name} diarization")
+                        result = diarizer.diarize(str(audio_to_send), num_speakers=None)
+                        
+                        # Фильтруем короткие сегменты (< 2% времени)
+                        if result:
+                            result = filter_short_segments(result, min_duration_ratio=0.02)
+                            logger.info(f"Task {task_id}: {len(result)} segments after filtering")
+                        
+                        return (result, DIARIZATION_BACKEND)  # Возвращаем также backend для правильного merge/format
+                    except Exception as e:
+                        logger.warning(f"Task {task_id}: {DIARIZATION_BACKEND} diarization failed: {e}")
+                        
+                        # Fallback: если pyannote упала, пробуем resemblyzer
+                        if DIARIZATION_BACKEND == "pyannote":
+                            try:
+                                logger.info(f"Task {task_id}: falling back to resemblyzer")
+                                fallback_diarizer = SpeakerDiarizationResemblyzer()
+                                result = fallback_diarizer.diarize(str(audio_to_send), num_speakers=None)
+                                
+                                # Фильтруем короткие сегменты (< 2% времени)
+                                if result:
+                                    result = filter_short_segments(result, min_duration_ratio=0.02)
+                                    logger.info(f"Task {task_id}: {len(result)} segments after filtering (fallback)")
+                                
+                                return (result, "resemblyzer")  # Указываем что использовался resemblyzer
+                            except Exception as fallback_error:
+                                logger.error(f"Task {task_id}: fallback diarization also failed: {fallback_error}")
+                        
+                        return (None, None)
+                
+                # Запускаем оба процесса параллельно
+                diarization_task = asyncio.create_task(run_diarization())
+                
+                # Ждём Yandex
+                tasks_status[task_id]["progress"] = 70
+                result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
+                
+                # Ждём диаризацию
+                tasks_status[task_id]["message"] = "Объединение результатов..."
+                tasks_status[task_id]["progress"] = 75
+                diarization_result = await diarization_task
+                speaker_segments, used_backend = diarization_result if diarization_result else (None, None)
+                
+            else:
+                # Без диаризации - просто ждём транскрипцию
+                tasks_status[task_id]["message"] = "Транскрибация (ожидание результата)..."
+                tasks_status[task_id]["progress"] = 60
+                result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
+            
+            # Удаляем временный файл из Object Storage
+            try:
+                object_name = Path(audio_to_send).name
+                stt.delete_from_storage(object_name)
+                logger.info(f"Task {task_id}: cleaned up S3 file {object_name}")
+            except Exception as e:
+                logger.warning(f"Task {task_id}: failed to cleanup S3 file: {e}")
+            
+            # Форматирование результата
+            if speaker_segments:
+                # Объединяем транскрипцию со спикерами
+                try:
+                    # Извлекаем слова из chunks Yandex
+                    all_words = []
+                    for chunk in result.get('chunks', []):
+                        for alt in chunk.get('alternatives', []):
+                            all_words.extend(alt.get('words', []))
+                    
+                    # Выбираем функции merge/format в зависимости от backend
+                    if used_backend == "resemblyzer":
+                        merge_fn = merge_resemblyzer
+                        format_fn = format_resemblyzer
+                    else:
+                        merge_fn = merge_transcription_with_speakers
+                        format_fn = format_speakers_dialogue
+                    
+                    # Объединяем с диаризацией
+                    words_with_speakers = merge_fn(all_words, speaker_segments)
+                    
+                    # Проверяем количество уникальных спикеров
+                    unique_speakers = set(w.get('speaker', 'UNKNOWN') for w in words_with_speakers)
+                    num_speakers = len(unique_speakers)
+                    
+                    logger.info(f"Task {task_id}: merged {len(words_with_speakers)} words with {num_speakers} unique speakers: {unique_speakers}")
+                    
+                    # Форматируем как диалог (только если > 1 спикера)
+                    if num_speakers > 1:
+                        text = format_fn(words_with_speakers)
+                        logger.info(f"Task {task_id}: formatted as multi-speaker dialogue")
+                    else:
+                        # Только один спикер - вернуть простой текст без префиксов
+                        text = result.get('result', '')
+                        logger.info(f"Task {task_id}: single speaker detected, using plain text")
+                    
+                    # Сохраняем enriched data
+                    result['words_with_speakers'] = words_with_speakers
+                    result['speaker_segments'] = speaker_segments
+                except Exception as e:
+                    logger.error(f"Task {task_id}: failed to merge speakers: {e}")
+                    text = result.get('result', '')
+            else:
+                text = result.get('result', '')
         
         tasks_status[task_id]["progress"] = 70
         
@@ -654,9 +882,12 @@ async def process_audio_file(
         result_file = RESULTS_DIR / f"{task_id}.json"
         result_data = {
             "task_id": task_id,
-            "text": text,
+            "result": text,  # ✅ Фронт ждёт именно "result"
+            "filename": tasks_status[task_id]["filename"],
             "original_filename": tasks_status[task_id]["filename"],
             "timestamp": datetime.now().isoformat(),
+            "speaker_labeling": options.get("speaker_labeling", False),
+            "jtbd_analysis": options.get("analyze_jtbd", False),
             "options": options,
             "raw_result": result,
             "jtbd": jtbd_result,
@@ -668,6 +899,14 @@ async def process_audio_file(
         # Очистка временных файлов
         if audio_to_send != file_path:
             audio_to_send.unlink(missing_ok=True)
+        
+        # Cleanup preprocessed file
+        if preprocessed_file and preprocessed_file != str(file_path):
+            try:
+                Path(preprocessed_file).unlink(missing_ok=True)
+                logger.debug(f"Task {task_id}: cleaned up preprocessed file")
+            except Exception as e:
+                logger.warning(f"Task {task_id}: failed to cleanup preprocessed file: {e}")
         
         tasks_status[task_id]["status"] = "completed"
         tasks_status[task_id]["progress"] = 100
@@ -715,10 +954,25 @@ async def favicon():
     return JSONResponse(status_code=404, content={"detail": "Favicon not found"})
 
 
+@app.get("/vite.svg")
+async def vite_svg():
+    """Vite logo для React-приложения"""
+    svg_path = Path(__file__).parent / "static" / "dist" / "vite.svg"
+    if svg_path.exists():
+        return FileResponse(svg_path, media_type="image/svg+xml")
+    return JSONResponse(status_code=404, content={"detail": "vite.svg not found"})
+
+
 @app.get("/", response_class=HTMLResponse)
-async def root():
+async def root(response: Response):
     """Главная страница с веб-интерфейсом"""
-    html_path = Path(__file__).parent / "static" / "index.html"
+    # Отключаем кеширование для dev режима
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
+    # Serve React build
+    html_path = Path(__file__).parent / "static" / "dist" / "index.html"
     if html_path.exists():
         return html_path.read_text(encoding='utf-8')
     
@@ -913,6 +1167,7 @@ async def transcribe(
     corrections: bool = Form(True),
     speaker_labeling: bool = Form(False),
     analyze_jtbd: bool = Form(False),  # JTBD отключен по умолчанию
+    quality_mode: str = Form("quality"),  # "fast" or "quality"
     user: str = Header(None, alias="X-User"),
     x_forwarded_for: str = Header(None, alias="X-Forwarded-For"),
     x_real_ip: str = Header(None, alias="X-Real-IP")
@@ -928,6 +1183,7 @@ async def transcribe(
     - **clean**: убрать слова-паразиты
     - **corrections**: применять исправления
     - **analyze_jtbd**: анализировать по JTBD фреймворку (Jobs To Be Done)
+    - **quality_mode**: режим качества ("fast" - быстро до 1 мин, "quality" - долго без лимитов)
     """
     
     # 🔍 STEP 1: Получили параметры
@@ -1018,6 +1274,7 @@ async def transcribe(
         "corrections": corrections,
         "speaker_labeling": speaker_labeling,
         "analyze_jtbd": analyze_jtbd,
+        "quality_mode": quality_mode,  # "fast" or "quality"
     }
     logger.info(f"✅ STEP 10: options = {options}")
     
