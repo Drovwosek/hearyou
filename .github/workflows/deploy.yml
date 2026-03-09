@@ -1,0 +1,55 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            
+            echo "🚀 Starting deployment..."
+            
+            # Navigate to project
+            cd /root/hearyou
+            
+            # Pull latest changes
+            echo "📥 Pulling latest code..."
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Navigate to service directory
+            cd packages/stt-service
+            
+            # Rebuild Docker image
+            echo "🏗️ Building Docker image..."
+            docker-compose build --no-cache
+            
+            # Restart service
+            echo "🔄 Restarting service..."
+            docker-compose down
+            docker-compose up -d
+            
+            # Wait for service to start
+            sleep 10
+            
+            # Check if service is running
+            if docker ps | grep hearyou-stt > /dev/null; then
+              echo "✅ Service deployed successfully!"
+              docker logs hearyou-stt --tail 10
+            else
+              echo "❌ Service failed to start!"
+              docker logs hearyou-stt --tail 50
+              exit 1
+            fi
