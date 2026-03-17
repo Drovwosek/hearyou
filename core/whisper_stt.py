@@ -70,6 +70,10 @@ class WhisperSTT:
             Dict с результатом транскрибации (совместимый формат с YandexSTT)
         """
         try:
+            # Конвертация language code: "ru-RU" -> "ru"
+            if '-' in language:
+                language = language.split('-')[0].lower()
+            
             # Подготовка параметров
             transcribe_options = {
                 "language": language,
@@ -156,6 +160,21 @@ class WhisperSTT:
         """
         logger.warning("⚠️ WhisperSTT не поддерживает async API, используется sync метод")
         return self.transcribe_sync(*args, **kwargs)
+    
+    def wait_for_completion(self, operation_result: Dict, poll_interval: int = 5) -> Dict:
+        """
+        Заглушка для совместимости с YandexSTT
+        Whisper работает синхронно, поэтому просто возвращаем результат
+        
+        Args:
+            operation_result: Результат от transcribe_async
+            poll_interval: Игнорируется
+            
+        Returns:
+            Тот же результат (уже готов)
+        """
+        logger.info("✅ Whisper: результат уже готов (синхронный режим)")
+        return operation_result
     
     def upload_to_storage(self, audio_file: str, object_name: Optional[str] = None) -> str:
         """
