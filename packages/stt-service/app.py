@@ -612,7 +612,10 @@ async def process_audio_file(
             else:
                 raise ValueError(f"Не удалось обработать аудио файл. Попробуйте другой формат.")
         
-        audio_to_send = temp_file
+        # Whisper работает лучше с WAV, Yandex требовал OGG
+        # Для локального Whisper используем preprocessed WAV напрямую
+        audio_to_send = preprocessed_file if preprocessed_file else temp_file
+        logger.info(f"Task {task_id}: using audio file: {Path(audio_to_send).name}")
         
         # Choose transcription method based on quality_mode
         quality_mode = options.get("quality_mode", "quality")
@@ -723,7 +726,7 @@ async def process_audio_file(
                 language=options.get("language", "ru-RU"),
                 punctuation=options.get("punctuation", True),
                 literature_text=options.get("literature", False),
-                auto_upload=True,
+                # auto_upload=True,  # Не поддерживается в Whisper
                 # hints=DEFAULT_HINTS,  # Не поддерживается в async API
             )
             
