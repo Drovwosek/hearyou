@@ -1167,14 +1167,15 @@ async def test_upload(file: UploadFile = File(...)):
 
 @app.post("/transcribe")
 async def transcribe(
+    request: Request,  # Added for connection tracking
     file: UploadFile = File(...),
-    language: str = Form("ru-RU"),
-    punctuation: bool = Form(True),
-    literature: bool = Form(False),
-    clean: bool = Form(False),
-    corrections: bool = Form(True),
-    speaker_labeling: bool = Form(False),
-    analyze_jtbd: bool = Form(False),  # JTBD отключен по умолчанию
+    language: str = Form("ru"),
+    punctuation: str = Form("true"),
+    literature: str = Form("false"),
+    clean: str = Form("false"),
+    corrections: str = Form("true"),
+    speaker_labeling: str = Form("false"),
+    analyze_jtbd: str = Form("false"),
     quality_mode: str = Form("quality"),  # "fast" or "quality"
     user: str = Header(None, alias="X-User"),
     x_forwarded_for: str = Header(None, alias="X-Forwarded-For"),
@@ -1194,9 +1195,33 @@ async def transcribe(
     - **quality_mode**: режим качества ("fast" - быстро до 1 мин, "quality" - долго без лимитов)
     """
     
-    # 🔍 STEP 1: Получили параметры
-    logger.info(f"📥 STEP 1: Received params - file={file.filename}, language={language}, punctuation={punctuation}, literature={literature}, clean={clean}, corrections={corrections}, speaker_labeling={speaker_labeling}, analyze_jtbd={analyze_jtbd}")
+    start_time = time.time()
     
+    # 🌐 COMPREHENSIVE REQUEST LOGGING
+    try:
+        logger.info("=" * 80)
+        logger.info(f"🌐 NEW REQUEST: POST /transcribe")
+        logger.info(f"🌐 Request headers: {dict(request.headers)}")
+        logger.info(f"📦 Content-Type: {request.headers.get('content-type')}")
+        logger.info(f"📏 Content-Length: {request.headers.get('content-length')}")
+        logger.info(f"🔑 Client IP: {x_forwarded_for or x_real_ip or 'direct'}")
+        logger.info(f"👤 User: {user or 'anonymous'}")
+        logger.info("=" * 80)
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to log request headers: {e}")
+    
+    try:
+        # 🔍 STEP 1: Получили параметры
+        logger.info(f"📥 STEP 1: Received params - file={file.filename}, language={language}, punctuation={punctuation}, literature={literature}, clean={clean}, corrections={corrections}, speaker_labeling={speaker_labeling}, analyze_jtbd={analyze_jtbd}")
+    
+    # Convert string parameters to correct types
+    punctuation = punctuation.lower() in ("true", "1", "yes") if isinstance(punctuation, str) else punctuation
+    literature = literature.lower() in ("true", "1", "yes") if isinstance(literature, str) else literature
+    clean = clean.lower() in ("true", "1", "yes") if isinstance(clean, str) else clean
+    corrections = corrections.lower() in ("true", "1", "yes") if isinstance(corrections, str) else corrections
+    speaker_labeling = speaker_labeling.lower() in ("true", "1", "yes") if isinstance(speaker_labeling, str) else speaker_labeling
+    analyze_jtbd = analyze_jtbd.lower() in ("true", "1", "yes") if isinstance(analyze_jtbd, str) else analyze_jtbd
+
     # Rate limiting (защита от спама)
     # Получаем IP из headers (если за прокси) или используем заглушку
     client_ip = x_forwarded_for or x_real_ip or "direct"
@@ -1250,27 +1275,38 @@ async def transcribe(
         logger.error("❌ STEP 7: File is empty")
         raise HTTPException(status_code=400, detail="Файл пустой")
     
-    # Сохранение файла
-    logger.info(f"💾 STEP 8: Saving file to {UPLOAD_DIR}...")
-    file_path = UPLOAD_DIR / f"{task_id}_{safe_filename}"
-    try:
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-        logger.info(f"✅ STEP 8: File saved to {file_path}")
-    except Exception as e:
-        logger.error(f"❌ STEP 8: Failed to save file: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
+        # 🔌 CONNECTION CHECK: Before file save
+        if await request.is_disconnected():
+            logger.warning(f"🔌 Client disconnected before file save (task_id={task_id})")
+            raise HTTPException(status_code=499, detail="Client disconnected")
+        
+        # Сохранение файла
+        logger.info(f"💾 STEP 8: Saving file to {UPLOAD_DIR}...")
+        file_path = UPLOAD_DIR / f"{task_id}_{safe_filename}"
+        try:
+            with open(file_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+            logger.info(f"✅ STEP 8: File saved to {file_path}")
+        except Exception as e:
+            logger.error(f"❌ STEP 8: Failed to save file: {e}")
+            raise HTTPException(status_code=500, detail=f"Ошибка при сохранении файла: {e}")
     
-    # Проверка безопасности файла
-    logger.info(f"🔒 STEP 9: Validating file security...")
-    try:
-        validate_file_security(safe_filename, file_path)
-        logger.info(f"✅ STEP 9: File validated successfully: {safe_filename}")
-    except ValueError as e:
-        # Удаляем небезопасный файл
-        logger.error(f"❌ STEP 9: File validation failed: {safe_filename}, reason: {e}")
-        file_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        # Проверка безопасности файла
+        logger.info(f"🔒 STEP 9: Validating file security...")
+        try:
+            validate_file_security(safe_filename, file_path)
+            logger.info(f"✅ STEP 9: File validated successfully: {safe_filename}")
+        except ValueError as e:
+            # Удаляем небезопасный файл
+            logger.error(f"❌ STEP 9: File validation failed: {safe_filename}, reason: {e}")
+            file_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=400, detail=str(e))
+        
+        # 🔌 CONNECTION CHECK: After file validation
+        if await request.is_disconnected():
+            logger.warning(f"🔌 Client disconnected after file validation (task_id={task_id})")
+            file_path.unlink(missing_ok=True)  # Cleanup
+            raise HTTPException(status_code=499, detail="Client disconnected")
     
     # Опции (используем санитизированный язык)
     logger.info("⚙️ STEP 10: Creating options...")
@@ -1297,20 +1333,61 @@ async def transcribe(
     }
     logger.info(f"✅ STEP 11: Task status created for {task_id}")
     
-    # Добавление в очередь
-    logger.info("📤 STEP 12: Adding task to queue...")
-    await task_queue.put({
-        "file_path": file_path,
-        "task_id": task_id,
-        "options": options,
-    })
-    logger.info(f"✅ STEP 12: Task {task_id} added to queue")
-    
-    return {
-        "task_id": task_id,
-        "status": "queued",
-        "message": "Задача добавлена в очередь"
-    }
+        # Добавление в очередь
+        logger.info("📤 STEP 12: Adding task to queue...")
+        await task_queue.put({
+            "file_path": file_path,
+            "task_id": task_id,
+            "options": options,
+        })
+        logger.info(f"✅ STEP 12: Task {task_id} added to queue")
+        
+        # 📊 RESPONSE LOGGING
+        processing_time = time.time() - start_time
+        response_data = {
+            "task_id": task_id,
+            "status": "queued",
+            "message": "Задача добавлена в очередь"
+        }
+        response_json = json.dumps(response_data, ensure_ascii=False)
+        response_size = len(response_json.encode('utf-8'))
+        
+        logger.info("=" * 80)
+        logger.info(f"✅ RESPONSE SUCCESS")
+        logger.info(f"📤 Status Code: 200")
+        logger.info(f"📏 Response Size: {response_size} bytes")
+        logger.info(f"⏱️ Processing Time: {processing_time:.3f}s")
+        logger.info(f"📋 Task ID: {task_id}")
+        logger.info("=" * 80)
+        
+        return response_data
+        
+    except HTTPException as http_exc:
+        # HTTP ошибки (rate limit, validation, etc.)
+        processing_time = time.time() - start_time
+        logger.error("=" * 80)
+        logger.error(f"❌ HTTP EXCEPTION in /transcribe")
+        logger.error(f"📍 Status Code: {http_exc.status_code}")
+        logger.error(f"📍 Detail: {http_exc.detail}")
+        logger.error(f"⏱️ Processing Time: {processing_time:.3f}s")
+        logger.error("=" * 80)
+        raise
+        
+    except Exception as e:
+        # Критические ошибки
+        processing_time = time.time() - start_time
+        logger.error("=" * 80)
+        logger.error(f"💥 CRITICAL ERROR in /transcribe: {type(e).__name__}: {str(e)}")
+        logger.error(f"📍 Traceback:")
+        logger.error(tb.format_exc())
+        logger.error(f"⏱️ Processing Time: {processing_time:.3f}s")
+        logger.error(f"📍 Request file: {file.filename if file else 'N/A'}")
+        logger.error(f"📍 Client IP: {x_forwarded_for or x_real_ip or 'direct'}")
+        logger.error("=" * 80)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {type(e).__name__}: {str(e)}"
+        )
 
 
 @app.get("/status/{task_id}")
