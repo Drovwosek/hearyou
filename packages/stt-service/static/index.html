@@ -885,11 +885,11 @@
             
             // Speaker labeling
             const speakerLabeling = document.getElementById('speakerLabeling').checked;
-            formData.append('speaker_labeling', speakerLabeling ? 'true' : 'false');
+            formData.append('speaker_labeling', speakerLabeling ? '1' : '0');
             
             // JTBD Analysis
             const jtbdAnalysis = document.getElementById('jtbdAnalysis').checked;
-            formData.append('analyze_jtbd', jtbdAnalysis ? 'true' : 'false');
+            formData.append('analyze_jtbd', jtbdAnalysis ? '1' : '0');
 
             try {
                 const response = await fetch('/transcribe', {
