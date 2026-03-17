@@ -636,8 +636,10 @@ async def process_audio_file(
                     f"Используйте Quality режим для больших файлов."
                 )
             
-            # Transcribe using sync API
-            result = stt.transcribe_sync(
+            # Transcribe using sync API (wrapped in thread to avoid blocking event loop)
+            import asyncio
+            result = await asyncio.to_thread(
+                stt.transcribe_sync,
                 str(audio_to_send),
                 language=options.get("language", "ru-RU"),
                 punctuation=options.get("punctuation", True),
@@ -719,9 +721,11 @@ async def process_audio_file(
             # Асинхронная транскрибация (поддержка больших файлов)
             logger.info(f"Task {task_id}: using QUALITY mode (async API)")
         
-            # Запускаем Yandex STT
+            # Запускаем Whisper STT (wrapped in thread to avoid blocking event loop)
             # speaker_labeling не поддерживается в transcribe_async - используем Resemblyzer отдельно
-            operation_id = stt.transcribe_async(
+            import asyncio
+            operation_id = await asyncio.to_thread(
+                stt.transcribe_async,
                 str(audio_to_send),
                 language=options.get("language", "ru-RU"),
                 punctuation=options.get("punctuation", True),
@@ -902,7 +906,7 @@ async def process_audio_file(
         
         # Очистка временных файлов
         if audio_to_send != file_path:
-            audio_to_send.unlink(missing_ok=True)
+            Path(audio_to_send).unlink(missing_ok=True)
         
         # Cleanup preprocessed file
         if preprocessed_file and preprocessed_file != str(file_path):

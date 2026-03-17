@@ -186,6 +186,14 @@ class WhisperSTT:
         """
         logger.warning("⚠️ upload_to_storage не нужен для локального Whisper")
         return audio_file
+    
+    def delete_from_storage(self, object_name: str) -> None:
+        """
+        Заглушка для совместимости с YandexSTT
+        Локальный Whisper не использует облачное хранилище
+        """
+        logger.debug("⚠️ delete_from_storage не нужен для локального Whisper")
+        pass
 
 
 # Удобная функция для быстрого использования
