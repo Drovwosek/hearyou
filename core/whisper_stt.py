@@ -52,6 +52,7 @@ class WhisperSTT:
         literature_text: bool = False,
         word_timestamps: bool = True,
         hints: Optional[List[str]] = None,
+        punctuation: bool = True,
         **kwargs
     ) -> Dict:
         """
@@ -64,6 +65,7 @@ class WhisperSTT:
             literature_text: Игнорируется (для совместимости с YandexSTT)
             word_timestamps: Включить временные метки слов
             hints: Список подсказок (initial_prompt для Whisper)
+            punctuation: Игнорируется (Whisper не поддерживает, для совместимости с YandexSTT)
             **kwargs: Дополнительные параметры для whisper.transcribe()
             
         Returns:
@@ -161,7 +163,7 @@ class WhisperSTT:
         logger.warning("⚠️ WhisperSTT не поддерживает async API, используется sync метод")
         return self.transcribe_sync(*args, **kwargs)
     
-    def wait_for_completion(self, operation_result: Dict, poll_interval: int = 5) -> Dict:
+    def wait_for_completion(self, operation_result: Dict, poll_interval: int = 5, timeout: int = None) -> Dict:
         """
         Заглушка для совместимости с YandexSTT
         Whisper работает синхронно, поэтому просто возвращаем результат
@@ -169,6 +171,7 @@ class WhisperSTT:
         Args:
             operation_result: Результат от transcribe_async
             poll_interval: Игнорируется
+            timeout: Игнорируется (для совместимости с YandexSTT)
             
         Returns:
             Тот же результат (уже готов)
