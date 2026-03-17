@@ -18,3 +18,7 @@ pyannote.audio>=3.3.0
 resemblyzer>=0.1.1
 librosa>=0.10.0
 scikit-learn>=1.3.0
+
+# ===== Whisper STT (локальный) =====
+openai-whisper>=20231117
+ffmpeg-python>=0.2.0

@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # Импорт из общего модуля core
 sys.path.insert(0, '/root/hearyou')
 
-from core.yandex_stt import YandexSTT
+from core.whisper_stt import WhisperSTT
 from core.text_cleaner import TranscriptionCleaner
 from core.audio_preprocessing import preprocess_audio
 
@@ -80,8 +80,8 @@ except Exception as e:
 
 app = FastAPI(
     title="HearYou STT Service",
-    description="Сервис транскрибации аудио через Yandex SpeechKit",
-    version="1.0.0"
+    description="Сервис транскрибации аудио через локальный Whisper",
+    version="2.0.0-whisper"
 )
 
 # Middleware для логирования запросов
@@ -215,11 +215,12 @@ chunked_uploads = {}  # {upload_id: {filename, total_chunks, received_chunks, fi
 # Можно вернуть whitelist если потребуется ограничить форматы:
 # ALLOWED_EXTENSIONS = {'.mp3', '.wav', '.aac', '.m4a', '.ogg', '.opus', '.flac', ...}
 
-# Инициализация STT (с поддержкой S3 для async API)
-stt = YandexSTT(
-    s3_access_key=os.getenv('YANDEX_S3_ACCESS_KEY'),
-    s3_secret_key=os.getenv('YANDEX_S3_SECRET_KEY'),
-    s3_bucket=os.getenv('YANDEX_S3_BUCKET', 'hearyou-stt-temp')
+# Инициализация STT (локальный Whisper)
+# Используем medium модель для баланса качества и скорости на CPU
+stt = WhisperSTT(
+    model_name=os.getenv('WHISPER_MODEL', 'medium'),  # medium, large, или другой
+    device='cpu',
+    compute_type='int8'
 )
 cleaner = TranscriptionCleaner()  # Полный пайплайн очистки (звуки + паразиты + артефакты)
 
