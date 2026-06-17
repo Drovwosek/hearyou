@@ -4,14 +4,8 @@
 echo "🚀 Запуск HearYou STT Service..."
 echo
 
-# Проверка .env.yandex
-if [ ! -f ".env.yandex" ]; then
-    echo "❌ Файл .env.yandex не найден!"
-    echo "Создайте его из .env.example и добавьте API ключи"
-    exit 1
-fi
-
-echo "✅ Конфигурация найдена"
+echo "✅ Yandex credentials не нужны: используется локальный Whisper"
+echo "   WHISPER_MODEL=${WHISPER_MODEL:-small}"
 echo
 
 # Запуск через docker-compose

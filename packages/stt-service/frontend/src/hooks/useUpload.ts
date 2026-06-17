@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { uploadFile, createEventSource } from '../utils/api';
+import { currentTimestamp } from '../utils/time';
 import type { TranscriptionResult, StatusUpdate } from '../types';
 
 export interface UploadState {
@@ -35,6 +36,8 @@ export const useUpload = (options: UploadOptions = {}) => {
     jtbdAnalysis: boolean;
   } | null>(null);
 
+  const now = () => currentTimestamp();
+
   const updateState = useCallback((updates: Partial<UploadState>) => {
     setState((prev) => ({ ...prev, ...updates }));
   }, []);
@@ -46,9 +49,24 @@ export const useUpload = (options: UploadOptions = {}) => {
     }
   }, []);
 
+  const handleError = useCallback(
+    (error: Error) => {
+      cleanup();
+      const errorMsg = `<span class="error">❌ ${error.message}</span>`;
+      updateState({
+        status: errorMsg,
+        error: error.message,
+        uploading: false,
+        progress: 0,
+      });
+      options.onError?.(error);
+    },
+    [cleanup, updateState, options]
+  );
+
   const handleStatusUpdate = useCallback(
     (data: StatusUpdate) => {
-      const elapsed = ((Date.now() - startTimeRef.current) / 1000).toFixed(1);
+      const elapsed = ((now() - startTimeRef.current) / 1000).toFixed(1);
 
       if (data.progress) {
         updateState({ progress: data.progress });
@@ -63,7 +81,7 @@ export const useUpload = (options: UploadOptions = {}) => {
       if (data.status === 'completed') {
         cleanup();
 
-        const totalTime = ((Date.now() - startTimeRef.current) / 1000).toFixed(1);
+        const totalTime = ((now() - startTimeRef.current) / 1000).toFixed(1);
 
         if (data.result && uploadMetadataRef.current) {
           const resultData: TranscriptionResult = {
@@ -93,22 +111,7 @@ export const useUpload = (options: UploadOptions = {}) => {
         handleError(error);
       }
     },
-    [state.taskId, updateState, cleanup, options]
-  );
-
-  const handleError = useCallback(
-    (error: Error) => {
-      cleanup();
-      const errorMsg = `<span class="error">❌ ${error.message}</span>`;
-      updateState({
-        status: errorMsg,
-        error: error.message,
-        uploading: false,
-        progress: 0,
-      });
-      options.onError?.(error);
-    },
-    [cleanup, updateState, options]
+    [state.taskId, updateState, cleanup, options, handleError]
   );
 
   const startUpload = useCallback(
@@ -124,7 +127,7 @@ export const useUpload = (options: UploadOptions = {}) => {
         taskId: null,
       });
 
-      startTimeRef.current = Date.now();
+      startTimeRef.current = now();
       uploadMetadataRef.current = {
         filename: file.name,
         speakerLabeling,
@@ -143,7 +146,7 @@ export const useUpload = (options: UploadOptions = {}) => {
         // Upload file
         const taskId = await uploadFile(file, speakerLabeling, jtbdAnalysis);
 
-        const uploadTime = ((Date.now() - startTimeRef.current) / 1000).toFixed(1);
+        const uploadTime = ((now() - startTimeRef.current) / 1000).toFixed(1);
         updateState({
           taskId,
           status: `<span class="success">✓ Файл загружен за ${uploadTime}с</span>`,

@@ -54,6 +54,19 @@ jobs:
         run: |
           cd ${{ github.workspace }}
           pytest tests/integration/ -v --tb=short || true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: packages/stt-service/frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd ${{ github.workspace }}/packages/stt-service/frontend
+          npm ci
+          npm run build
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -71,7 +84,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Module | Coverage |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|----------|" >> $GITHUB_STEP_SUMMARY
-          echo "| core/yandex_stt.py | ~70% |" >> $GITHUB_STEP_SUMMARY
+          echo "| core/local_whisper_stt.py | covered by unit tests |" >> $GITHUB_STEP_SUMMARY
           echo "| core/stt_corrections.py | ~56% |" >> $GITHUB_STEP_SUMMARY
           echo "| core/filler_words_filter.py | ~67% |" >> $GITHUB_STEP_SUMMARY
       

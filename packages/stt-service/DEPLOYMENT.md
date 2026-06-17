@@ -4,24 +4,20 @@
 
 ### GitHub Actions
 
-При каждом push в `main` автоматически деплоится на VPS.
+При каждом push в `main` запускается CI. Если workflow `Tests` завершился успешно,
+workflow `Deploy to Production` автоматически деплоит сервис на VPS.
 
 **Настройка (один раз):**
 
-1. Добавь SSH ключ в GitHub Secrets:
-   ```bash
-   # На этой машине:
-   cat ~/.ssh/id_ed25519
-   ```
-
-2. GitHub → Settings → Secrets and variables → Actions → New secret
-   - Name: `SSH_PRIVATE_KEY`
-   - Value: *содержимое приватного ключа*
-
-3. Готово! Теперь при push в main автоматически обновляется сервис.
+1. GitHub → Settings → Secrets and variables → Actions.
+2. Добавь/проверь secrets:
+   - `VPS_HOST` - IP или hostname сервера
+   - `VPS_USER` - SSH-пользователь
+   - `VPS_SSH_KEY` - приватный SSH-ключ для деплоя
+3. Готово: после успешных тестов в `main` сервис обновляется автоматически.
 
 **Ручной запуск:**
-- GitHub → Actions → Deploy STT Service → Run workflow
+- GitHub → Actions → Deploy to Production → Run workflow
 
 ---
 

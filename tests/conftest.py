@@ -12,51 +12,52 @@ import tempfile
 import json
 import wave
 
-# Добавляем путь к core модулям
-sys.path.insert(0, str(Path(__file__).parent.parent / "core"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "stt-yandex"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "stt-service"))
+PROJECT_ROOT = Path(__file__).parent.parent
+
+# Добавляем путь к core модулям и FastAPI сервису
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "core"))
+sys.path.insert(0, str(PROJECT_ROOT / "packages" / "stt-service"))
 
 
 @pytest.fixture
 def mock_env_vars(monkeypatch):
-    """Mock environment variables для Yandex API"""
-    monkeypatch.setenv("YANDEX_API_KEY", "test_api_key_12345")
-    monkeypatch.setenv("YANDEX_FOLDER_ID", "test_folder_id")
-    monkeypatch.setenv("YANDEX_S3_ACCESS_KEY", "test_s3_access")
-    monkeypatch.setenv("YANDEX_S3_SECRET_KEY", "test_s3_secret")
-    monkeypatch.setenv("YANDEX_S3_BUCKET", "test-bucket")
+    """Mock environment variables для локального Whisper runtime."""
+    monkeypatch.delenv("YANDEX_API_KEY", raising=False)
+    monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
+    monkeypatch.delenv("YANDEX_S3_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("YANDEX_S3_SECRET_KEY", raising=False)
+    monkeypatch.delenv("YANDEX_S3_BUCKET", raising=False)
+    monkeypatch.setenv("WHISPER_MODEL", "tiny")
+    monkeypatch.setenv("WHISPER_DEVICE", "cpu")
+    monkeypatch.setenv("WHISPER_COMPUTE_TYPE", "int8")
 
 
 @pytest.fixture
-def mock_yandex_api(mocker):
-    """Mock Yandex STT API responses"""
-    
-    # Mock requests.post для sync API
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
+def mock_local_stt(mocker):
+    """Mock локального STT-провайдера."""
+    mock_response = {
         "result": "Тестовая транскрипция текста"
     }
-    
-    mocker.patch("requests.post", return_value=mock_response)
-    
-    return mock_response
+
+    mock_transcribe = mocker.patch("core.local_whisper_stt.LocalWhisperSTT.transcribe_sync")
+    mock_transcribe.return_value = mock_response
+
+    return mock_transcribe
+
+
+@pytest.fixture
+def mock_yandex_api(mock_local_stt):
+    """Legacy alias для старых пропущенных тестов."""
+    return mock_local_stt
 
 
 @pytest.fixture
 def mock_s3_client(mocker):
-    """Mock boto3 S3 client"""
+    """Legacy no-op S3 client mock для старых пропущенных тестов."""
     mock_client = MagicMock()
-    
-    # Mock upload_file
     mock_client.upload_file.return_value = None
-    
-    # Mock delete_object
     mock_client.delete_object.return_value = None
-    
-    mocker.patch("boto3.client", return_value=mock_client)
-    
     return mock_client
 
 
@@ -125,13 +126,9 @@ def test_corrections_file():
 
 @pytest.fixture
 def mock_async_operation(mocker):
-    """Mock асинхронной операции Yandex"""
-    
-    # Mock для transcribe_async
+    """Mock асинхронной операции локального STT."""
     operation_id = "test_operation_123"
-    
-    # Mock для check_operation
-    mock_check = mocker.patch("yandex_stt.YandexSTT.check_operation")
+    mock_check = mocker.patch("core.local_whisper_stt.LocalWhisperSTT.check_operation")
     mock_check.return_value = {
         "done": True,
         "response": {
@@ -153,7 +150,7 @@ def mock_async_operation(mocker):
 
 @pytest.fixture
 def test_yandex_response():
-    """Типичный ответ от Yandex STT API"""
+    """Legacy fixture: типичный ответ STT API."""
     return {
         "result": "Привет мир это тестовая транскрипция"
     }
@@ -161,7 +158,7 @@ def test_yandex_response():
 
 @pytest.fixture
 def test_yandex_chunks_response():
-    """Ответ Yandex API с chunks (для speaker diarization)"""
+    """Legacy fixture: ответ STT API с chunks (для speaker diarization)."""
     return {
         "chunks": [
             {

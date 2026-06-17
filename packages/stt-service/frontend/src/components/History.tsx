@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import HistoryItem from './HistoryItem';
-import { useHistory } from '../hooks/useHistory';
+import { useHistory, type HistoryEntry } from '../hooks/useHistory';
 import type { TranscriptionResult } from '../types';
 import './History.css';
 
@@ -13,7 +13,7 @@ const History: React.FC<HistoryProps> = ({ onLoad }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 
-  const handleItemClick = async (item: any) => {
+  const handleItemClick = async (item: HistoryEntry) => {
     if (item.status !== 'completed') {
       alert('Эта транскрипция ещё не завершена');
       return;

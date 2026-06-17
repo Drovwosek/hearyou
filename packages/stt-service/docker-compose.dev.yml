@@ -8,9 +8,6 @@ services:
     container_name: hearyou-stt
     ports:
       - "8000:8000"
-    # env_file для HuggingFace token (опционально)
-    env_file:
-      - .env.huggingface
     volumes:
       # LIVE RELOAD: изменения применяются мгновенно!
       - ../../core:/app/core:ro
@@ -25,6 +22,19 @@ services:
       - ./results:/app/results
       - ./temp:/app/temp
       - ./logs:/app/logs
+      - ./chunks:/app/chunks
+      - ./models:/app/models
+    environment:
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
+      - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8}
+      - WHISPER_MODEL_DIR=/app/models
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}
+      - HEARYOU_UPLOAD_DIR=/app/uploads
+      - HEARYOU_RESULTS_DIR=/app/results
+      - HEARYOU_TEMP_DIR=/app/temp
+      - HEARYOU_LOGS_DIR=/app/logs
+      - HEARYOU_CHUNKS_DIR=/app/chunks
     restart: unless-stopped
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 900 --reload
     # --reload автоматически перезагружает при изменении файлов!

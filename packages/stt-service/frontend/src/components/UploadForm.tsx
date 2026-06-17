@@ -184,7 +184,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUpload, disabled, status }) =
               onChange={(e) => setQualityMode(e.target.value as 'fast' | 'quality')}
               disabled={disabled}
             />
-            <span>⚡ Быстрый (до 1 мин)</span>
+            <span>⚡ Быстрый</span>
           </label>
           <label className="mode-item">
             <input
@@ -195,7 +195,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUpload, disabled, status }) =
               onChange={(e) => setQualityMode(e.target.value as 'fast' | 'quality')}
               disabled={disabled}
             />
-            <span>🎯 Качественный (без лимитов)</span>
+            <span>🎯 Качественный</span>
           </label>
         </div>
       </div>

@@ -1,12 +1,15 @@
 name: Deploy to Production
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     
     steps:
@@ -31,15 +34,21 @@ jobs:
             
             # Navigate to service directory
             cd packages/stt-service
+
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE="docker compose"
+            else
+              COMPOSE="docker-compose"
+            fi
             
             # Rebuild Docker image
             echo "🏗️ Building Docker image..."
-            docker-compose build --no-cache
+            $COMPOSE build
             
             # Restart service
             echo "🔄 Restarting service..."
-            docker-compose down
-            docker-compose up -d
+            $COMPOSE down
+            $COMPOSE up -d
             
             # Wait for service to start
             sleep 10

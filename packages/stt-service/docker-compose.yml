@@ -11,11 +11,22 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./results:/app/results
+      - ./temp:/app/temp
+      - ./logs:/app/logs
+      - ./chunks:/app/chunks
+      - ./models:/app/models
       - ./static:/app/static:ro
-    env_file:
-      - .env.yandex
-      - .env.huggingface
     environment:
       - PYTHONUNBUFFERED=1
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
+      - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8}
+      - WHISPER_MODEL_DIR=/app/models
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}
+      - HEARYOU_UPLOAD_DIR=/app/uploads
+      - HEARYOU_RESULTS_DIR=/app/results
+      - HEARYOU_TEMP_DIR=/app/temp
+      - HEARYOU_LOGS_DIR=/app/logs
+      - HEARYOU_CHUNKS_DIR=/app/chunks
     restart: unless-stopped
     command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "900", "--h11-max-incomplete-event-size", "1073741824"]

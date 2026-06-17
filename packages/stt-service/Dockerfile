@@ -18,7 +18,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # ШАГ 2: Копируем код (меняется часто, но не инвалидирует кеш requirements)
 COPY core/ ./core/
-COPY packages/stt-service/.env.yandex ./core/.env.yandex
 COPY packages/stt-service/app.py .
 COPY packages/stt-service/static/ ./static/
 COPY packages/stt-service/ispring_hints.py .
@@ -28,6 +27,13 @@ COPY packages/stt-service/ispring_corrections.json .
 
 # Создание директорий
 RUN mkdir -p uploads results temp logs chunks
+
+ENV WHISPER_MODEL=small \
+    WHISPER_DEVICE=cpu \
+    WHISPER_COMPUTE_TYPE=int8 \
+    WHISPER_MODEL_DIR=/app/models
+
+RUN mkdir -p /app/models
 
 EXPOSE 8000
 

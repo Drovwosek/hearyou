@@ -24,21 +24,28 @@ import re
 import logging
 import traceback as tb
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    handlers=[
-        logging.FileHandler('/app/logs/app.log'),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
 
-# Импорт из общего модуля core
-sys.path.insert(0, '/root/hearyou')
+RUNTIME_ROOT = Path(__file__).resolve().parent
 
-from core.yandex_stt import YandexSTT
+
+def resolve_runtime_dir(primary: str, fallback_name: str) -> Path:
+    candidate = Path(primary)
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+        return candidate
+    except OSError:
+        fallback = RUNTIME_ROOT / fallback_name
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+# Импорт из общего модуля core
+for import_root in (RUNTIME_ROOT.parent.parent, Path("/app"), Path("/root/hearyou")):
+    root_str = str(import_root)
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+
+from core.local_whisper_stt import LocalWhisperSTT, WhisperSettings
 from core.text_cleaner import TranscriptionCleaner
 from core.audio_preprocessing import preprocess_audio
 
@@ -52,12 +59,25 @@ except ImportError:
 
 from ispring_hints import DEFAULT_HINTS
 
-# Импортируем оба backend'а для fallback
-from speaker_diarization_resemblyzer import (
-    SpeakerDiarizationResemblyzer,
-    merge_transcription_with_speakers as merge_resemblyzer,
-    format_with_speakers as format_resemblyzer
-)
+# Импортируем fallback backend; если зависимость отсутствует, сервис всё равно должен стартовать.
+try:
+    from speaker_diarization_resemblyzer import (
+        SpeakerDiarizationResemblyzer,
+        merge_transcription_with_speakers as merge_resemblyzer,
+        format_with_speakers as format_resemblyzer
+    )
+except Exception as e:
+    logger.warning(f"⚠️ Не удалось загрузить resemblyzer, speaker labeling отключён: {e}")
+
+    class SpeakerDiarizationResemblyzer:
+        def diarize(self, *args, **kwargs):
+            raise RuntimeError("Resemblyzer backend unavailable")
+
+    def merge_resemblyzer(*args, **kwargs):
+        raise RuntimeError("Resemblyzer backend unavailable")
+
+    def format_resemblyzer(*args, **kwargs):
+        raise RuntimeError("Resemblyzer backend unavailable")
 
 # Пробуем загрузить pyannote.audio (state-of-the-art)
 try:
@@ -80,7 +100,7 @@ except Exception as e:
 
 app = FastAPI(
     title="HearYou STT Service",
-    description="Сервис транскрибации аудио через Yandex SpeechKit",
+    description="Сервис локальной транскрибации аудио через Whisper",
     version="1.0.0"
 )
 
@@ -184,25 +204,26 @@ async def general_exception_handler(request: Request, exc: Exception):
         content={"detail": f"Internal server error: {str(exc)}"}
     )
 
-# Mount static files for React build
-app.mount("/assets", StaticFiles(directory="static/dist/assets"), name="assets")
+STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIST_DIR = STATIC_DIR / "dist"
+STATIC_ASSETS_DIR = STATIC_DIST_DIR / "assets"
+
+# Mount static files for React build only when build output is present.
+if STATIC_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=STATIC_ASSETS_DIR), name="assets")
+else:
+    logger.warning("React build assets not found at %s; skipping /assets mount", STATIC_ASSETS_DIR)
 
 # Конфигурация
-UPLOAD_DIR = Path("uploads")
-RESULTS_DIR = Path("results")
-TEMP_DIR = Path("temp")
-
-UPLOAD_DIR.mkdir(exist_ok=True)
-RESULTS_DIR.mkdir(exist_ok=True)
-TEMP_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR = resolve_runtime_dir(os.environ.get("HEARYOU_UPLOAD_DIR", "uploads"), "uploads")
+RESULTS_DIR = resolve_runtime_dir(os.environ.get("HEARYOU_RESULTS_DIR", "results"), "results")
+TEMP_DIR = resolve_runtime_dir(os.environ.get("HEARYOU_TEMP_DIR", "temp"), "temp")
 
 # Логи
-LOGS_DIR = Path("/app/logs")
-LOGS_DIR.mkdir(exist_ok=True)
+LOGS_DIR = resolve_runtime_dir(os.environ.get("HEARYOU_LOGS_DIR", "/app/logs"), "logs")
 
 # Временная директория для chunked uploads
-CHUNKS_DIR = Path("/app/chunks")
-CHUNKS_DIR.mkdir(exist_ok=True)
+CHUNKS_DIR = resolve_runtime_dir(os.environ.get("HEARYOU_CHUNKS_DIR", "/app/chunks"), "chunks")
 
 # Максимальный размер файла (25 ГБ - для видео, аудио экстрагируется автоматически)
 MAX_FILE_SIZE = 25 * 1024 * 1024 * 1024
@@ -215,12 +236,30 @@ chunked_uploads = {}  # {upload_id: {filename, total_chunks, received_chunks, fi
 # Можно вернуть whitelist если потребуется ограничить форматы:
 # ALLOWED_EXTENSIONS = {'.mp3', '.wav', '.aac', '.m4a', '.ogg', '.opus', '.flac', ...}
 
-# Инициализация STT (с поддержкой S3 для async API)
-stt = YandexSTT(
-    s3_access_key=os.getenv('YANDEX_S3_ACCESS_KEY'),
-    s3_secret_key=os.getenv('YANDEX_S3_SECRET_KEY'),
-    s3_bucket=os.getenv('YANDEX_S3_BUCKET', 'hearyou-stt-temp')
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    handlers=[
+        logging.FileHandler(LOGS_DIR / "app.log"),
+        logging.StreamHandler()
+    ]
 )
+logger = logging.getLogger(__name__)
+
+def create_stt_client():
+    settings = WhisperSettings.from_env()
+    logger.info(
+        "Initializing local Whisper STT: model=%s device=%s compute_type=%s",
+        settings.model,
+        settings.device,
+        settings.compute_type,
+    )
+    return LocalWhisperSTT(settings)
+
+
+# Инициализация локального STT
+stt = create_stt_client()
 cleaner = TranscriptionCleaner()  # Полный пайплайн очистки (звуки + паразиты + артефакты)
 
 # Инициализация speaker diarization
@@ -294,7 +333,7 @@ def format_with_speakers(result_data: dict) -> str:
     Форматировать транскрипцию с разделением по спикерам
     
     Args:
-        result_data: Результат от Yandex API с speakerLabeling
+        result_data: Результат STT с chunks/words
         
     Returns:
         Отформатированный текст с разделением по спикерам
@@ -483,7 +522,7 @@ def sanitize_language_code(lang: str) -> str:
     Валидация языкового кода
     Разрешены только стандартные коды вида: xx-XX
     """
-    # Whitelist языков поддерживаемых Yandex
+    # Whitelist языков, которые поддерживает текущий UI/API контракт
     allowed_languages = {
         'ru-RU', 'en-US', 'tr-TR', 'uk-UK', 'uz-UZ', 
         'kk-KK', 'de-DE', 'fr-FR', 'es-ES'
@@ -617,28 +656,20 @@ async def process_audio_file(
         quality_mode = options.get("quality_mode", "quality")
         logger.info(f"Task {task_id}: quality_mode = {quality_mode}")
         
-        # ========== FAST MODE: Sync API (< 1 min) ==========
+        # ========== FAST MODE: Local Whisper ==========
         if quality_mode == "fast":
             tasks_status[task_id]["progress"] = 50
             tasks_status[task_id]["message"] = "Быстрая транскрибация..."
-            logger.info(f"Task {task_id}: using FAST mode (sync API)")
+            logger.info(f"Task {task_id}: using FAST mode (local Whisper)")
             
-            # Check file size (sync API limit: 1 MB)
-            file_size = Path(audio_to_send).stat().st_size
-            if file_size > 1 * 1024 * 1024:  # 1 MB
-                raise ValueError(
-                    f"Fast режим поддерживает файлы до 1 МБ. "
-                    f"Ваш файл: {file_size / (1024*1024):.1f} МБ. "
-                    f"Используйте Quality режим для больших файлов."
-                )
-            
-            # Transcribe using sync API
-            result = stt.transcribe_sync(
+            result = await asyncio.to_thread(
+                stt.transcribe_sync,
                 str(audio_to_send),
                 language=options.get("language", "ru-RU"),
                 punctuation=options.get("punctuation", True),
                 literature_text=options.get("literature", False),
                 format="oggopus",
+                hints=DEFAULT_HINTS,
             )
             
             tasks_status[task_id]["progress"] = 70
@@ -652,7 +683,7 @@ async def process_audio_file(
                 try:
                     backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
                     logger.info(f"Task {task_id}: running {backend_name} diarization (fast mode)")
-                    speaker_segments = diarizer.diarize(str(audio_to_send), num_speakers=None)
+                    speaker_segments = await asyncio.to_thread(diarizer.diarize, str(audio_to_send), num_speakers=None)
                     
                     # Фильтруем короткие сегменты (< 2% времени)
                     if speaker_segments:
@@ -668,7 +699,7 @@ async def process_audio_file(
             # Format text with speakers
             if speaker_segments and options.get("speaker_labeling", False):
                 try:
-                    # Extract words from sync API result
+                    # Extract words from STT result
                     all_words = []
                     for chunk in result.get('chunks', []):
                         for alt in chunk.get('alternatives', []):
@@ -707,39 +738,24 @@ async def process_audio_file(
             else:
                 text = result.get('result', '')
         
-        # ========== QUALITY MODE: Async API (no limits) ==========
+        # ========== QUALITY MODE: Local Whisper ==========
         else:
             tasks_status[task_id]["progress"] = 50
-            tasks_status[task_id]["message"] = "Загрузка в облако..."
-            
-            # Асинхронная транскрибация (поддержка больших файлов)
-            logger.info(f"Task {task_id}: using QUALITY mode (async API)")
-        
-            # Запускаем Yandex STT
-            # speaker_labeling не поддерживается в transcribe_async - используем Resemblyzer отдельно
-            operation_id = stt.transcribe_async(
-                str(audio_to_send),
-                language=options.get("language", "ru-RU"),
-                punctuation=options.get("punctuation", True),
-                literature_text=options.get("literature", False),
-                auto_upload=True,
-                # hints=DEFAULT_HINTS,  # Не поддерживается в async API
-            )
-            
-            logger.info(f"Task {task_id}: operation_id = {operation_id}")
+            tasks_status[task_id]["message"] = "Локальная транскрибация Whisper..."
+            logger.info(f"Task {task_id}: using QUALITY mode (local Whisper)")
             
             # Если нужна диаризация - запускаем Resemblyzer параллельно
             speaker_segments = None
+            used_backend = None
             if options.get("speaker_labeling", False):
                 tasks_status[task_id]["message"] = "Транскрипция + определение спикеров..."
                 tasks_status[task_id]["progress"] = 60
                 
-                # Запускаем диаризацию параллельно с Yandex
                 async def run_diarization():
                     try:
                         backend_name = "pyannote" if DIARIZATION_BACKEND == "pyannote" else "resemblyzer"
                         logger.info(f"Task {task_id}: starting {backend_name} diarization")
-                        result = diarizer.diarize(str(audio_to_send), num_speakers=None)
+                        result = await asyncio.to_thread(diarizer.diarize, str(audio_to_send), num_speakers=None)
                         
                         # Фильтруем короткие сегменты (< 2% времени)
                         if result:
@@ -755,7 +771,7 @@ async def process_audio_file(
                             try:
                                 logger.info(f"Task {task_id}: falling back to resemblyzer")
                                 fallback_diarizer = SpeakerDiarizationResemblyzer()
-                                result = fallback_diarizer.diarize(str(audio_to_send), num_speakers=None)
+                                result = await asyncio.to_thread(fallback_diarizer.diarize, str(audio_to_send), num_speakers=None)
                                 
                                 # Фильтруем короткие сегменты (< 2% времени)
                                 if result:
@@ -768,12 +784,19 @@ async def process_audio_file(
                         
                         return (None, None)
                 
-                # Запускаем оба процесса параллельно
                 diarization_task = asyncio.create_task(run_diarization())
                 
-                # Ждём Yandex
+                # Локальная транскрибация
                 tasks_status[task_id]["progress"] = 70
-                result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
+                result = await asyncio.to_thread(
+                    stt.transcribe_sync,
+                    str(audio_to_send),
+                    language=options.get("language", "ru-RU"),
+                    punctuation=options.get("punctuation", True),
+                    literature_text=options.get("literature", False),
+                    format="oggopus",
+                    hints=DEFAULT_HINTS,
+                )
                 
                 # Ждём диаризацию
                 tasks_status[task_id]["message"] = "Объединение результатов..."
@@ -782,24 +805,24 @@ async def process_audio_file(
                 speaker_segments, used_backend = diarization_result if diarization_result else (None, None)
                 
             else:
-                # Без диаризации - просто ждём транскрипцию
-                tasks_status[task_id]["message"] = "Транскрибация (ожидание результата)..."
+                # Без диаризации - просто транскрибируем локально
+                tasks_status[task_id]["message"] = "Локальная транскрибация..."
                 tasks_status[task_id]["progress"] = 60
-                result = stt.wait_for_completion(operation_id, timeout=7200, poll_interval=5)
-            
-            # Удаляем временный файл из Object Storage
-            try:
-                object_name = Path(audio_to_send).name
-                stt.delete_from_storage(object_name)
-                logger.info(f"Task {task_id}: cleaned up S3 file {object_name}")
-            except Exception as e:
-                logger.warning(f"Task {task_id}: failed to cleanup S3 file: {e}")
+                result = await asyncio.to_thread(
+                    stt.transcribe_sync,
+                    str(audio_to_send),
+                    language=options.get("language", "ru-RU"),
+                    punctuation=options.get("punctuation", True),
+                    literature_text=options.get("literature", False),
+                    format="oggopus",
+                    hints=DEFAULT_HINTS,
+                )
             
             # Форматирование результата
             if speaker_segments:
                 # Объединяем транскрипцию со спикерами
                 try:
-                    # Извлекаем слова из chunks Yandex
+                    # Извлекаем слова из chunks STT
                     all_words = []
                     for chunk in result.get('chunks', []):
                         for alt in chunk.get('alternatives', []):
@@ -1167,7 +1190,7 @@ async def transcribe(
     corrections: bool = Form(True),
     speaker_labeling: bool = Form(False),
     analyze_jtbd: bool = Form(False),  # JTBD отключен по умолчанию
-    quality_mode: str = Form("quality"),  # "fast" or "quality"
+    quality_mode: str = Form("quality"),  # legacy UI switch; both modes use local Whisper
     user: str = Header(None, alias="X-User"),
     x_forwarded_for: str = Header(None, alias="X-Forwarded-For"),
     x_real_ip: str = Header(None, alias="X-Real-IP")
@@ -1179,11 +1202,11 @@ async def transcribe(
     - **language**: язык (ru-RU, en-US, etc.)
     - **speaker_labeling**: определять спикеров (кто говорит)
     - **punctuation**: расставлять пунктуацию
-    - **literature**: литературный текст (Yandex фильтр)
+    - **literature**: legacy-флаг литературного текста; локальный Whisper игнорирует его
     - **clean**: убрать слова-паразиты
     - **corrections**: применять исправления
     - **analyze_jtbd**: анализировать по JTBD фреймворку (Jobs To Be Done)
-    - **quality_mode**: режим качества ("fast" - быстро до 1 мин, "quality" - долго без лимитов)
+    - **quality_mode**: legacy-переключатель UI; оба режима используют локальный Whisper
     """
     
     # 🔍 STEP 1: Получили параметры
@@ -1409,7 +1432,7 @@ async def download_result(task_id: str):
     
     # Создать TXT файл
     txt_file = TEMP_DIR / f"{task_id}.txt"
-    txt_file.write_text(data["text"], encoding='utf-8')
+    txt_file.write_text(data.get("result") or data.get("text", ""), encoding='utf-8')
     
     # Имя файла из результата или из in-memory статуса
     filename = data.get("original_filename", "transcript.txt")

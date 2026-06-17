@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { currentTimestamp } from '../utils/time';
 import './ProgressBar.css';
 
 interface ProgressBarProps {
@@ -7,7 +8,7 @@ interface ProgressBarProps {
   message?: string;
   showPercentage?: boolean;
   animated?: boolean;
-  startTime?: number;
+  startTime?: number | null;
 }
 
 const ProgressBar: React.FC<ProgressBarProps> = ({
@@ -18,33 +19,32 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   animated = true,
   startTime,
 }) => {
-  const [eta, setEta] = useState<string>('');
-
-  useEffect(() => {
+  const eta = (() => {
     if (!startTime || progress <= 0 || progress >= 100) {
-      setEta('');
-      return;
+      return '';
     }
 
-    const elapsed = (Date.now() - startTime) / 1000; // seconds
-    const rate = progress / elapsed; // % per second
-    const remaining = (100 - progress) / rate; // seconds
+    const elapsed = (currentTimestamp() - startTime) / 1000;
+    const rate = progress / elapsed;
+    const remaining = (100 - progress) / rate;
 
-    if (remaining > 0 && isFinite(remaining)) {
-      if (remaining < 60) {
-        setEta(`~${Math.round(remaining)}с`);
-      } else if (remaining < 3600) {
-        const minutes = Math.round(remaining / 60);
-        setEta(`~${minutes}м`);
-      } else {
-        const hours = Math.floor(remaining / 3600);
-        const minutes = Math.round((remaining % 3600) / 60);
-        setEta(`~${hours}ч ${minutes}м`);
-      }
-    } else {
-      setEta('');
+    if (!(remaining > 0) || !isFinite(remaining)) {
+      return '';
     }
-  }, [progress, startTime]);
+
+    if (remaining < 60) {
+      return `~${Math.round(remaining)}с`;
+    }
+
+    if (remaining < 3600) {
+      const minutes = Math.round(remaining / 60);
+      return `~${minutes}м`;
+    }
+
+    const hours = Math.floor(remaining / 3600);
+    const minutes = Math.round((remaining % 3600) / 60);
+    return `~${hours}ч ${minutes}м`;
+  })();
 
   if (!visible) return null;
 

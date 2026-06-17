@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import UploadForm from './components/UploadForm';
 import ProgressBar from './components/ProgressBar';
 import TranscriptionResult from './components/TranscriptionResult';
@@ -9,6 +9,7 @@ import {
   createEventSource,
   loadResult,
 } from './utils/api';
+import { currentTimestamp } from './utils/time';
 import type { TranscriptionResult as TResult } from './types';
 import './App.css';
 
@@ -18,26 +19,11 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
   const [result, setResult] = useState<TResult | null>(null);
+  const [startTime, setStartTime] = useState<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  useEffect(() => {
-    // Check URL for task_id (shared links)
-    const urlParams = new URLSearchParams(window.location.search);
-    const taskId = urlParams.get('task_id');
-    if (taskId) {
-      handleLoadResult(taskId);
-    }
-
-    // Cleanup EventSource on unmount
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-    };
-  }, []);
-
-  const handleLoadResult = async (taskId: string) => {
+  const handleLoadResult = useCallback(async (taskId: string) => {
     try {
       setStatus('<span class="info">🔄 Загрузка результата...</span>');
       const data = await loadResult(taskId);
@@ -66,7 +52,27 @@ function App() {
         }</span>`
       );
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Check URL for task_id (shared links)
+    const urlParams = new URLSearchParams(window.location.search);
+    const taskId = urlParams.get('task_id');
+    if (taskId) {
+      const timer = window.setTimeout(() => {
+        void handleLoadResult(taskId);
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    // Cleanup EventSource on unmount
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
+  }, [handleLoadResult]);
 
   const handleUpload = async (
     file: File,
@@ -78,14 +84,16 @@ function App() {
     setResult(null);
     setProgress(0);
     setShowProgress(false);
-    startTimeRef.current = Date.now();
+    const startedAt = currentTimestamp();
+    startTimeRef.current = startedAt;
+    setStartTime(startedAt);
 
     try {
       setStatus('<span class="info">📤 Загрузка файла...</span>');
 
       const taskId = await uploadFile(file, speakerLabeling, jtbdAnalysis, qualityMode);
 
-      const uploadTime = ((Date.now() - startTimeRef.current) / 1000).toFixed(1);
+      const uploadTime = ((currentTimestamp() - startTimeRef.current) / 1000).toFixed(1);
       setStatus(`<span class="success">✓ Файл загружен за ${uploadTime}с</span>`);
       setShowProgress(true);
 
@@ -115,7 +123,7 @@ function App() {
     eventSourceRef.current = createEventSource(
       taskId,
       (data) => {
-        const elapsed = ((Date.now() - startTimeRef.current) / 1000).toFixed(1);
+        const elapsed = ((currentTimestamp() - startTimeRef.current) / 1000).toFixed(1);
 
         if (data.progress) {
           setProgress(data.progress);
@@ -131,7 +139,7 @@ function App() {
             eventSourceRef.current = null;
           }
 
-          const totalTime = ((Date.now() - startTimeRef.current) / 1000).toFixed(1);
+          const totalTime = ((currentTimestamp() - startTimeRef.current) / 1000).toFixed(1);
 
           if (data.result) {
             const resultData: TResult = {
@@ -195,7 +203,7 @@ function App() {
   return (
     <div className="container">
       <UploadForm onUpload={handleUpload} disabled={uploading} status={status} />
-      <ProgressBar progress={progress} visible={showProgress} startTime={startTimeRef.current} />
+      <ProgressBar progress={progress} visible={showProgress} startTime={startTime ?? undefined} />
 
       {result && (
         <div className={`results-grid ${result.jtbd ? '' : 'single-column'}`}>
