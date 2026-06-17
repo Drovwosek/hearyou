@@ -5,34 +5,38 @@
 ### GitHub Actions
 
 При каждом push в `main` запускается CI. Если workflow `Tests` завершился успешно,
-workflow `Deploy to Production` автоматически деплоит сервис на VPS.
+workflow `Deploy to Production` фиксирует успешный handoff, а VPS сам забирает
+последний SHA с успешным `Tests` и деплоит его через `hearyou-pull-deploy.timer`.
 
 **Настройка (один раз):**
 
-1. GitHub → Settings → Secrets and variables → Actions.
-2. Добавь/проверь secrets:
-   - `VPS_HOST` - IP или hostname сервера
-   - `VPS_USER` - SSH-пользователь
-   - `VPS_SSH_KEY` - приватный SSH-ключ для деплоя
-3. Готово: после успешных тестов в `main` сервис обновляется автоматически.
+1. На VPS включен systemd timer `hearyou-pull-deploy.timer`.
+2. Timer проверяет последний успешный `Tests` run на `main`.
+3. Если SHA изменился, сервер делает `git reset`, обновляет venv-зависимости и
+   перезапускает `hearyou-stt.service`.
 
 **Ручной запуск:**
-- GitHub → Actions → Deploy to Production → Run workflow
+
+```bash
+ssh root@72.56.8.201 'systemctl start hearyou-pull-deploy.service'
+```
 
 ---
 
 ## Ручной деплой
 
 ```bash
-cd packages/stt-service
-./deploy.sh
+ssh root@72.56.8.201
+systemctl start hearyou-pull-deploy.service
+journalctl -u hearyou-pull-deploy.service -f
 ```
 
 Скрипт автоматически:
-1. Синхронизирует файлы на VPS
-2. Пересобирает Docker образ
-3. Перезапускает сервис
-4. Проверяет доступность
+1. Берет последний SHA с успешным `Tests`.
+2. Обновляет `/root/hearyou`.
+3. Обновляет `/opt/hearyou-venv`.
+4. Перезапускает `hearyou-stt.service`.
+5. Проверяет `/stats`.
 
 ---
 
@@ -40,23 +44,24 @@ cd packages/stt-service
 
 ```bash
 # SSH
-ssh root@92.51.36.233
+ssh root@72.56.8.201
 
 # Статус
-cd /root/hearyou/packages
-docker-compose -f stt-service/docker-compose.yml ps
+systemctl status hearyou-stt.service
+systemctl status hearyou-pull-deploy.timer
 
 # Логи
-docker-compose -f stt-service/docker-compose.yml logs -f
+journalctl -u hearyou-stt.service -f
+journalctl -u hearyou-pull-deploy.service -f
 
 # Рестарт
-docker-compose -f stt-service/docker-compose.yml restart
+systemctl restart hearyou-stt.service
 
 # Остановка
-docker-compose -f stt-service/docker-compose.yml down
+systemctl stop hearyou-stt.service
 
-# Пересборка
-docker-compose -f stt-service/docker-compose.yml up -d --build
+# Текущий задеплоенный SHA
+cat /var/lib/hearyou-deploy/deployed.sha
 ```
 
 ---
@@ -82,6 +87,6 @@ docker-compose -f stt-service/docker-compose.yml up -d --build
 
 ## URL
 
-**Production:** http://92.51.36.233:8000
+**Production:** http://72.56.8.201:8000
 
-**API Docs:** http://92.51.36.233:8000/docs
+**API Docs:** http://72.56.8.201:8000/docs
