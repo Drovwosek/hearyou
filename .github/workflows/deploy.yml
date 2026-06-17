@@ -34,47 +34,67 @@ jobs:
             -o ServerAliveCountMax=10
           )
 
-          ssh "${ssh_opts[@]}" "${VPS_USER}@${VPS_HOST}" 'bash -s' <<'REMOTE'
-            set -euo pipefail
+          ssh "${ssh_opts[@]}" "${VPS_USER}@${VPS_HOST}" 'cat > /root/hearyou-deploy-run.sh' <<'REMOTE'
+          set -euo pipefail
             
-            echo "🚀 Starting deployment..."
+          echo "🚀 Starting deployment..."
             
-            # Navigate to project
-            cd /root/hearyou
+          # Navigate to project
+          cd /root/hearyou
             
-            # Pull latest changes
-            echo "📥 Pulling latest code..."
-            git fetch origin main
-            git reset --hard origin/main
+          # Pull latest changes
+          echo "📥 Pulling latest code..."
+          git fetch origin main
+          git reset --hard origin/main
             
-            # Navigate to service directory
-            cd packages/stt-service
+          # Navigate to service directory
+          cd packages/stt-service
 
-            if docker compose version >/dev/null 2>&1; then
-              COMPOSE="docker compose"
-            else
-              COMPOSE="docker-compose"
-            fi
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE="docker compose"
+          else
+            COMPOSE="docker-compose"
+          fi
             
-            # Rebuild Docker image
-            echo "🏗️ Building Docker image..."
-            $COMPOSE build
+          # Rebuild Docker image
+          echo "🏗️ Building Docker image..."
+          $COMPOSE build
             
-            # Restart service
-            echo "🔄 Restarting service..."
-            $COMPOSE down
-            $COMPOSE up -d
+          # Restart service
+          echo "🔄 Restarting service..."
+          $COMPOSE down
+          $COMPOSE up -d
             
-            # Wait for service to start
-            sleep 10
+          # Wait for service to start
+          sleep 10
             
-            # Check if service is running
-            if docker ps | grep hearyou-stt > /dev/null; then
-              echo "✅ Service deployed successfully!"
-              docker logs hearyou-stt --tail 10
-            else
-              echo "❌ Service failed to start!"
-              docker logs hearyou-stt --tail 50
-              exit 1
-            fi
+          # Check if service is running
+          if docker ps | grep hearyou-stt > /dev/null; then
+            echo "✅ Service deployed successfully!"
+            docker logs hearyou-stt --tail 10
+          else
+            echo "❌ Service failed to start!"
+            docker logs hearyou-stt --tail 50
+            exit 1
+          fi
           REMOTE
+
+          ssh "${ssh_opts[@]}" "${VPS_USER}@${VPS_HOST}" 'chmod +x /root/hearyou-deploy-run.sh && rm -f /root/hearyou-deploy.exit /root/hearyou-deploy.log && nohup bash -c "/root/hearyou-deploy-run.sh > /root/hearyou-deploy.log 2>&1; echo \$? > /root/hearyou-deploy.exit" >/dev/null 2>&1 &'
+
+          for attempt in {1..80}; do
+            sleep 15
+            echo "---- deploy log tail (attempt ${attempt}) ----"
+            ssh "${ssh_opts[@]}" "${VPS_USER}@${VPS_HOST}" 'tail -n 80 /root/hearyou-deploy.log 2>/dev/null || true'
+            status="$(ssh "${ssh_opts[@]}" "${VPS_USER}@${VPS_HOST}" 'if [ -f /root/hearyou-deploy.exit ]; then cat /root/hearyou-deploy.exit; else echo RUNNING; fi')"
+            if [ "${status}" != "RUNNING" ]; then
+              if [ "${status}" = "0" ]; then
+                echo "Deploy completed successfully."
+                exit 0
+              fi
+              echo "Deploy failed with exit code ${status}."
+              exit "${status}"
+            fi
+          done
+
+          echo "Deploy timed out."
+          exit 1
