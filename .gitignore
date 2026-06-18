@@ -12,6 +12,8 @@ env/
 venv/
 *.egg-info/
 dist/
+!packages/stt-service/static/dist/
+!packages/stt-service/static/dist/**
 build/
 
 # Logs
