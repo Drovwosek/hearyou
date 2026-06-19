@@ -8,9 +8,14 @@ import os
 import json
 import logging
 from typing import Dict, List, Optional, Any
-from anthropic import Anthropic
+
+import requests
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_APINET_MODEL = "claude-sonnet-4-6-high"
+DEFAULT_APINET_BASE_URL = "https://apinet.cloud/v1"
 
 
 class JTBDAnalyzer:
@@ -25,25 +30,58 @@ class JTBDAnalyzer:
     - Triggers: триггеры, что запускает потребность в "работе"
     """
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "claude-sonnet-4-5-20250929"):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = DEFAULT_ANTHROPIC_MODEL,
+        provider: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ):
         """
         Инициализация анализатора
         
         Args:
-            api_key: API ключ Anthropic (если None, берётся из env)
-            model: модель Claude для использования
+            api_key: API ключ провайдера (если None, берётся из env)
+            model: модель для использования
+            provider: anthropic или apinet; если None, выбирается автоматически
+            base_url: базовый URL для OpenAI-compatible провайдера
         """
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        requested_provider = (provider or os.getenv("JTBD_PROVIDER", "")).strip().lower()
+        if requested_provider and requested_provider not in ("anthropic", "apinet"):
+            raise ValueError("JTBD_PROVIDER должен быть anthropic или apinet.")
+
+        if not requested_provider:
+            requested_provider = "apinet" if (api_key or os.getenv("APINET_API_KEY", "").strip()) else "anthropic"
+
+        self.provider = requested_provider
+        self.api_key = (api_key or (
+            os.getenv("APINET_API_KEY", "").strip() if self.provider == "apinet"
+            else os.getenv("ANTHROPIC_API_KEY", "").strip()
+        )).strip()
         if not self.api_key:
             raise ValueError(
-                "ANTHROPIC_API_KEY не найден. Установите переменную окружения "
-                "или передайте api_key в конструктор."
+                ("APINET_API_KEY" if self.provider == "apinet" else "ANTHROPIC_API_KEY")
+                + " не найден. Установите переменную окружения или передайте api_key в конструктор."
             )
-        
-        self.model = model
-        self.client = Anthropic(api_key=self.api_key)
-        
-        logger.info(f"JTBDAnalyzer initialized with model: {model}")
+
+        if self.provider == "apinet":
+            self.model = model if model != DEFAULT_ANTHROPIC_MODEL else (
+                os.getenv("APINET_MODEL", DEFAULT_APINET_MODEL).strip() or DEFAULT_APINET_MODEL
+            )
+            self.base_url = (base_url or os.getenv("APINET_BASE_URL", DEFAULT_APINET_BASE_URL)).strip() or DEFAULT_APINET_BASE_URL
+            self.client = None
+        else:
+            self.model = model
+            self.base_url = None
+            try:
+                from anthropic import Anthropic
+            except ImportError as error:
+                raise ImportError(
+                    "Пакет anthropic не установлен. Установите его или используйте APINET_API_KEY."
+                ) from error
+            self.client = Anthropic(api_key=self.api_key)
+
+        logger.info("JTBDAnalyzer initialized with provider=%s model=%s", self.provider, self.model)
     
     def _build_prompt(self, text: str) -> str:
         """
@@ -145,7 +183,83 @@ class JTBDAnalyzer:
   "summary": "краткое резюме: основная работа пользователя и ключевые инсайты (2-3 предложения)"
 }}
 
-Верни ТОЛЬКО валидный JSON, без дополнительных комментариев."""
+        Верни ТОЛЬКО валидный JSON, без дополнительных комментариев."""
+
+    def _extract_chat_output_text(self, response: Dict[str, Any]) -> str:
+        parts = []
+        for choice in response.get("choices", []):
+            message = choice.get("message") or {}
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                parts.append(content)
+                continue
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, str) and item.strip():
+                        parts.append(item)
+                    elif isinstance(item, dict) and item.get("text"):
+                        parts.append(item["text"])
+        return "\n".join(parts).strip()
+
+    def _usage_from_response(self, response: Dict[str, Any]) -> Dict[str, int]:
+        usage = response.get("usage") or {}
+        return {
+            "input_tokens": usage.get("input_tokens", usage.get("prompt_tokens", 0)) or 0,
+            "output_tokens": usage.get("output_tokens", usage.get("completion_tokens", 0)) or 0,
+        }
+
+    def _analyze_with_anthropic(self, text: str, max_tokens: int) -> Dict[str, Any]:
+        message = self.client.messages.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": self._build_prompt(text)}],
+        )
+
+        response_text = message.content[0].text
+        usage = {
+            "input_tokens": getattr(message.usage, "input_tokens", 0) or 0,
+            "output_tokens": getattr(message.usage, "output_tokens", 0) or 0,
+        }
+        return {
+            "response_text": response_text,
+            "usage": usage,
+        }
+
+    def _analyze_with_apinet(self, text: str, max_tokens: int) -> Dict[str, Any]:
+        payload = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "temperature": 0,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Верни только валидный JSON без markdown и без пояснений.",
+                },
+                {"role": "user", "content": self._build_prompt(text)},
+            ],
+        }
+        response = requests.post(
+            self.base_url.rstrip("/") + "/chat/completions",
+            headers={
+                "Authorization": "Bearer " + self.api_key,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=120,
+        )
+        if not response.ok:
+            detail = response.text.strip()
+            try:
+                message = response.json().get("error", {}).get("message", detail)
+            except Exception:
+                message = detail
+            raise RuntimeError("Apinet API: " + message[:500])
+
+        data = response.json()
+        return {
+            "response_text": self._extract_chat_output_text(data),
+            "usage": self._usage_from_response(data),
+        }
 
     def analyze(self, text: str, max_tokens: int = 4000) -> Dict[str, Any]:
         """
@@ -173,31 +287,22 @@ class JTBDAnalyzer:
         
         try:
             logger.info(f"Starting JTBD analysis ({len(text)} chars)")
-            
-            # Вызов Claude API
-            prompt = self._build_prompt(text)
-            
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=max_tokens,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
-            )
-            
-            # Извлечение текста ответа
-            response_text = message.content[0].text
-            
-            logger.debug(f"Claude response length: {len(response_text)} chars")
-            
+
+            if self.provider == "apinet":
+                result_data = self._analyze_with_apinet(text, max_tokens)
+            else:
+                result_data = self._analyze_with_anthropic(text, max_tokens)
+
+            response_text = result_data["response_text"]
+            usage = result_data["usage"]
+
+            logger.debug("%s response length: %s chars", self.provider.title(), len(response_text))
+
             # Парсинг JSON
             try:
                 result = json.loads(response_text)
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON from Claude: {e}")
+                logger.error(f"Failed to parse JSON from JTBD provider response: {e}")
                 logger.debug(f"Raw response: {response_text[:500]}")
                 
                 # Попытка извлечь JSON из markdown блока
@@ -212,9 +317,10 @@ class JTBDAnalyzer:
             # Добавление метаданных
             result["metadata"] = {
                 "model": self.model,
+                "provider": self.provider,
                 "input_length": len(text),
-                "input_tokens": message.usage.input_tokens,
-                "output_tokens": message.usage.output_tokens,
+                "input_tokens": usage["input_tokens"],
+                "output_tokens": usage["output_tokens"],
                 "total_elements": (
                     len(result.get("jobs", [])) +
                     len(result.get("pains", [])) +

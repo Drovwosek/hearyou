@@ -79,7 +79,8 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ### Опциональные
 - `HUGGINGFACE_TOKEN` - для pyannote.audio (state-of-the-art diarization)
-- `ANTHROPIC_API_KEY` - для JTBD анализа
+- `APINET_API_KEY` / `APINET_BASE_URL` / `APINET_MODEL` - для JTBD анализа через OpenAI-compatible endpoint
+- `ANTHROPIC_API_KEY` - для JTBD анализа через Anthropic
 
 ## 📊 Производительность
 

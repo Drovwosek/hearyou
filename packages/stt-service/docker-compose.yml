@@ -23,6 +23,10 @@ services:
       - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8}
       - WHISPER_MODEL_DIR=/app/models
       - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}
+      - APINET_API_KEY=${APINET_API_KEY:-}
+      - APINET_BASE_URL=${APINET_BASE_URL:-https://apinet.cloud/v1}
+      - APINET_MODEL=${APINET_MODEL:-claude-sonnet-4-6-high}
+      - JTBD_PROVIDER=${JTBD_PROVIDER:-apinet}
       - HEARYOU_UPLOAD_DIR=/app/uploads
       - HEARYOU_RESULTS_DIR=/app/results
       - HEARYOU_TEMP_DIR=/app/temp

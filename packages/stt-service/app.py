@@ -49,13 +49,13 @@ from core.local_whisper_stt import LocalWhisperSTT, WhisperSettings
 from core.text_cleaner import TranscriptionCleaner
 from core.audio_preprocessing import preprocess_audio
 
-# JTBD анализатор - опционально (требует anthropic)
+# JTBD анализатор - опционально (поддерживает Anthropic или OpenAI-compatible endpoint)
 try:
     from core.jtbd_analyzer import JTBDAnalyzer
     JTBD_AVAILABLE = True
 except ImportError:
     JTBD_AVAILABLE = False
-    logger.warning("JTBD Analyzer недоступен: не установлен пакет 'anthropic'")
+    logger.warning("JTBD Analyzer недоступен: не удалось импортировать модуль")
 
 from ispring_hints import DEFAULT_HINTS
 
@@ -273,12 +273,12 @@ if JTBD_AVAILABLE:
     try:
         jtbd_analyzer = JTBDAnalyzer()
         logger.info("JTBD Analyzer initialized successfully")
-    except ValueError as e:
+    except (ValueError, RuntimeError) as e:
         logger.warning(f"JTBD Analyzer not initialized: {e}")
         jtbd_analyzer = None
 else:
     jtbd_analyzer = None
-    logger.info("JTBD Analyzer disabled (anthropic package not installed)")
+    logger.info("JTBD Analyzer disabled")
 
 
 def filter_short_segments(segments: List[Dict], min_duration_ratio: float = 0.05) -> List[Dict]:
