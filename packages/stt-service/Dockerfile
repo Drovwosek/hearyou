@@ -23,7 +23,10 @@ COPY packages/stt-service/static/ ./static/
 COPY packages/stt-service/ispring_hints.py .
 COPY packages/stt-service/speaker_diarization_resemblyzer.py .
 COPY packages/stt-service/speaker_diarization_pyannote.py .
-COPY packages/stt-service/ispring_corrections.json .
+# Используем example-файл как надёжный источник исправлений,
+# чтобы сборка не зависела от наличия отдельного JSON в контексте Timeweb.
+COPY packages/stt-service/corrections.example.json ./ispring_corrections.json
+COPY packages/stt-service/corrections.example.json ./core/ispring_corrections.json
 
 # Создание директорий
 RUN mkdir -p uploads results temp logs chunks
