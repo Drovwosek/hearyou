@@ -13,20 +13,20 @@ RUN apt-get update && \
 WORKDIR /app
 
 # ШАГ 1: Устанавливаем зависимости ПЕРВЫМИ (кешируется!)
-COPY packages/stt-service/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ШАГ 2: Копируем код (меняется часто, но не инвалидирует кеш requirements)
 COPY core/ ./core/
-COPY packages/stt-service/app.py .
-COPY packages/stt-service/static/ ./static/
-COPY packages/stt-service/ispring_hints.py .
-COPY packages/stt-service/speaker_diarization_resemblyzer.py .
-COPY packages/stt-service/speaker_diarization_pyannote.py .
+COPY app.py .
+COPY static/ ./static/
+COPY ispring_hints.py .
+COPY speaker_diarization_resemblyzer.py .
+COPY speaker_diarization_pyannote.py .
 # Используем example-файл как надёжный источник исправлений,
 # чтобы сборка не зависела от наличия отдельного JSON в контексте Timeweb.
-COPY packages/stt-service/corrections.example.json ./ispring_corrections.json
-COPY packages/stt-service/corrections.example.json ./core/ispring_corrections.json
+COPY corrections.example.json ./ispring_corrections.json
+COPY corrections.example.json ./core/ispring_corrections.json
 
 # Создание директорий
 RUN mkdir -p uploads results temp logs chunks
