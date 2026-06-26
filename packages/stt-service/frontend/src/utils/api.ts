@@ -9,6 +9,7 @@ export const uploadFile = async (
   const formData = new FormData();
   formData.append('file', file);
   formData.append('speaker_labeling', speakerLabeling.toString());
+  formData.append('analyze_jtbd', jtbdAnalysis.toString());
   formData.append('jtbd_analysis', jtbdAnalysis.toString());
   formData.append('quality_mode', qualityMode);
 

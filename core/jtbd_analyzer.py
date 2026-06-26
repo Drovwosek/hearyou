@@ -16,6 +16,29 @@ logger = logging.getLogger(__name__)
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_APINET_MODEL = "claude-sonnet-4-6-high"
 DEFAULT_APINET_BASE_URL = "https://apinet.cloud/v1"
+DEFAULT_OPUS_CHAT_MODEL = "gpt-4o-mini"
+DEFAULT_OPUS_BASE_URL = "https://api.openai.com/v1"
+
+
+def _load_key_from_env_file(path: str, key_name: str) -> Optional[str]:
+    env_path = os.path.expanduser(path)
+    if not os.path.exists(env_path):
+        return None
+
+    try:
+        with open(env_path, encoding="utf-8") as handle:
+            for line in handle:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                if stripped.startswith(key_name + ":"):
+                    return stripped.split(":", 1)[1].strip() or None
+                if stripped.startswith(key_name + "="):
+                    return stripped.split("=", 1)[1].strip() or None
+    except Exception:
+        return None
+
+    return None
 
 
 class JTBDAnalyzer:
@@ -51,13 +74,24 @@ class JTBDAnalyzer:
             raise ValueError("JTBD_PROVIDER должен быть anthropic или apinet.")
 
         if not requested_provider:
-            requested_provider = "apinet" if (api_key or os.getenv("APINET_API_KEY", "").strip()) else "anthropic"
+            requested_provider = "apinet" if (
+                api_key
+                or os.getenv("APINET_API_KEY", "").strip()
+                or os.getenv("API_KEY_OPUS", "").strip()
+                or _load_key_from_env_file(os.getenv("OPUS_ENV_FILE", "/Users/kaban/codex/.env"), "API_KEY_OPUS")
+            ) else "anthropic"
 
         self.provider = requested_provider
         self.api_key = (api_key or (
             os.getenv("APINET_API_KEY", "").strip() if self.provider == "apinet"
             else os.getenv("ANTHROPIC_API_KEY", "").strip()
         )).strip()
+        if self.provider == "apinet" and not self.api_key:
+            self.api_key = (
+                os.getenv("API_KEY_OPUS", "").strip()
+                or _load_key_from_env_file(os.getenv("OPUS_ENV_FILE", "/Users/kaban/codex/.env"), "API_KEY_OPUS")
+                or ""
+            ).strip()
         if not self.api_key:
             raise ValueError(
                 ("APINET_API_KEY" if self.provider == "apinet" else "ANTHROPIC_API_KEY")
@@ -65,10 +99,19 @@ class JTBDAnalyzer:
             )
 
         if self.provider == "apinet":
-            self.model = model if model != DEFAULT_ANTHROPIC_MODEL else (
-                os.getenv("APINET_MODEL", DEFAULT_APINET_MODEL).strip() or DEFAULT_APINET_MODEL
-            )
-            self.base_url = (base_url or os.getenv("APINET_BASE_URL", DEFAULT_APINET_BASE_URL)).strip() or DEFAULT_APINET_BASE_URL
+            if self.api_key and (os.getenv("APINET_API_KEY", "").strip() or not os.getenv("ANTHROPIC_API_KEY", "").strip()):
+                self.model = model if model != DEFAULT_ANTHROPIC_MODEL else (
+                    os.getenv("APINET_MODEL", "")
+                    or os.getenv("OPUS_CHAT_MODEL", "")
+                    or os.getenv("OPUS_MODEL", "")
+                    or DEFAULT_OPUS_CHAT_MODEL
+                ).strip() or DEFAULT_OPUS_CHAT_MODEL
+                self.base_url = (base_url or os.getenv("APINET_BASE_URL", "") or os.getenv("OPUS_BASE_URL", DEFAULT_OPUS_BASE_URL)).strip() or DEFAULT_OPUS_BASE_URL
+            else:
+                self.model = model if model != DEFAULT_ANTHROPIC_MODEL else (
+                    os.getenv("APINET_MODEL", DEFAULT_APINET_MODEL).strip() or DEFAULT_APINET_MODEL
+                )
+                self.base_url = (base_url or os.getenv("APINET_BASE_URL", DEFAULT_APINET_BASE_URL)).strip() or DEFAULT_APINET_BASE_URL
             self.client = None
         else:
             self.model = model

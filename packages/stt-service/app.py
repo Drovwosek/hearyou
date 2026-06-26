@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HearYou STT Service - FastAPI веб-сервис для транскрибации
+HearYou STT Service - FastAPI веб-сервис для транскрибации через локальный или внешний STT backend
 """
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Header, Request, Response
@@ -46,6 +46,7 @@ for import_root in (RUNTIME_ROOT.parent.parent, Path("/app"), Path("/root/hearyo
         sys.path.insert(0, root_str)
 
 from core.local_whisper_stt import LocalWhisperSTT, WhisperSettings
+from core.opus_transcribe_stt import OpusTranscriptionSTT
 from core.text_cleaner import TranscriptionCleaner
 from core.audio_preprocessing import preprocess_audio
 
@@ -100,7 +101,7 @@ except Exception as e:
 
 app = FastAPI(
     title="HearYou STT Service",
-    description="Сервис локальной транскрибации аудио через Whisper",
+    description="Сервис транскрибации аудио через Whisper или внешний API STT",
     version="1.0.0"
 )
 
@@ -248,14 +249,49 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def create_stt_client():
-    settings = WhisperSettings.from_env()
-    logger.info(
-        "Initializing local Whisper STT: model=%s device=%s compute_type=%s",
-        settings.model,
-        settings.device,
-        settings.compute_type,
-    )
-    return LocalWhisperSTT(settings)
+    provider = os.getenv("STT_PROVIDER", "").strip().lower()
+
+    if provider not in {"", "local", "opus"}:
+        logger.warning("Unknown STT_PROVIDER=%s, falling back to auto selection", provider)
+        provider = ""
+
+    if provider == "local":
+        settings = WhisperSettings.from_env()
+        logger.info(
+            "Initializing local Whisper STT: model=%s device=%s compute_type=%s",
+            settings.model,
+            settings.device,
+            settings.compute_type,
+        )
+        return LocalWhisperSTT(settings)
+
+    try:
+        logger.info(
+            "Initializing remote transcription STT via API key from environment or %s",
+            os.getenv("OPUS_ENV_FILE", "/Users/kaban/codex/.env"),
+        )
+        return OpusTranscriptionSTT()
+    except ValueError as exc:
+        if provider == "opus":
+            raise
+
+        logger.warning("Remote transcription STT not available (%s); falling back to local Whisper", exc)
+        settings = WhisperSettings.from_env()
+        logger.info(
+            "Initializing local Whisper STT: model=%s device=%s compute_type=%s",
+            settings.model,
+            settings.device,
+            settings.compute_type,
+        )
+        return LocalWhisperSTT(settings)
+
+
+def normalize_jtbd_flag(analyze_jtbd: Optional[bool], jtbd_analysis: Optional[bool] = None) -> bool:
+    if analyze_jtbd is not None:
+        return bool(analyze_jtbd)
+    if jtbd_analysis is not None:
+        return bool(jtbd_analysis)
+    return False
 
 
 # Инициализация локального STT
@@ -786,7 +822,7 @@ async def process_audio_file(
                 
                 diarization_task = asyncio.create_task(run_diarization())
                 
-                # Локальная транскрибация
+                # Транскрибация через выбранный STT backend
                 tasks_status[task_id]["progress"] = 70
                 result = await asyncio.to_thread(
                     stt.transcribe_sync,
@@ -805,8 +841,8 @@ async def process_audio_file(
                 speaker_segments, used_backend = diarization_result if diarization_result else (None, None)
                 
             else:
-                # Без диаризации - просто транскрибируем локально
-                tasks_status[task_id]["message"] = "Локальная транскрибация..."
+                # Без диаризации - просто транскрибируем через выбранный backend
+                tasks_status[task_id]["message"] = "Транскрибация..."
                 tasks_status[task_id]["progress"] = 60
                 result = await asyncio.to_thread(
                     stt.transcribe_sync,
@@ -935,6 +971,8 @@ async def process_audio_file(
         tasks_status[task_id]["progress"] = 100
         tasks_status[task_id]["result"] = text
         tasks_status[task_id]["result_file"] = str(result_file)
+        if jtbd_result is not None:
+            tasks_status[task_id]["jtbd"] = jtbd_result
         
     except Exception as e:
         error_msg = str(e)
@@ -1088,7 +1126,8 @@ async def complete_upload(
     literature: bool = Form(False),
     clean: bool = Form(False),
     corrections: bool = Form(True),
-    analyze_jtbd: bool = Form(False)  # JTBD отключен по умолчанию
+    analyze_jtbd: Optional[bool] = Form(None),
+    jtbd_analysis: Optional[bool] = Form(None),  # backward compatibility
 ):
     """
     Завершение chunked upload и запуск транскрибации
@@ -1148,7 +1187,7 @@ async def complete_upload(
         "literature": literature,
         "clean": clean,
         "corrections": corrections,
-        "analyze_jtbd": analyze_jtbd,
+        "analyze_jtbd": normalize_jtbd_flag(analyze_jtbd, jtbd_analysis),
     }
     
     tasks_status[task_id] = {
@@ -1189,7 +1228,8 @@ async def transcribe(
     clean: bool = Form(False),
     corrections: bool = Form(True),
     speaker_labeling: bool = Form(False),
-    analyze_jtbd: bool = Form(False),  # JTBD отключен по умолчанию
+    analyze_jtbd: Optional[bool] = Form(None),  # JTBD отключен по умолчанию
+    jtbd_analysis: Optional[bool] = Form(None),  # backward compatibility
     quality_mode: str = Form("quality"),  # legacy UI switch; both modes use local Whisper
     user: str = Header(None, alias="X-User"),
     x_forwarded_for: str = Header(None, alias="X-Forwarded-For"),
@@ -1206,11 +1246,12 @@ async def transcribe(
     - **clean**: убрать слова-паразиты
     - **corrections**: применять исправления
     - **analyze_jtbd**: анализировать по JTBD фреймворку (Jobs To Be Done)
-    - **quality_mode**: legacy-переключатель UI; оба режима используют локальный Whisper
+    - **quality_mode**: legacy-переключатель UI; оба режима используют выбранный STT backend
     """
     
     # 🔍 STEP 1: Получили параметры
-    logger.info(f"📥 STEP 1: Received params - file={file.filename}, language={language}, punctuation={punctuation}, literature={literature}, clean={clean}, corrections={corrections}, speaker_labeling={speaker_labeling}, analyze_jtbd={analyze_jtbd}")
+    analyze_jtbd_flag = normalize_jtbd_flag(analyze_jtbd, jtbd_analysis)
+    logger.info(f"📥 STEP 1: Received params - file={file.filename}, language={language}, punctuation={punctuation}, literature={literature}, clean={clean}, corrections={corrections}, speaker_labeling={speaker_labeling}, analyze_jtbd={analyze_jtbd_flag}")
     
     # Rate limiting (защита от спама)
     # Получаем IP из headers (если за прокси) или используем заглушку
@@ -1296,7 +1337,7 @@ async def transcribe(
         "clean": clean,
         "corrections": corrections,
         "speaker_labeling": speaker_labeling,
-        "analyze_jtbd": analyze_jtbd,
+        "analyze_jtbd": analyze_jtbd_flag,
         "quality_mode": quality_mode,  # "fast" or "quality"
     }
     logger.info(f"✅ STEP 10: options = {options}")
@@ -1365,6 +1406,10 @@ async def stream_status(task_id: str):
                         with open(result_path, "r", encoding="utf-8") as f:
                             result_data = json.load(f)
                             data["result"] = result_data.get("text", "")
+                            if result_data.get("jtbd") is not None:
+                                data["jtbd"] = result_data.get("jtbd")
+                if task.get("jtbd") is not None and "jtbd" not in data:
+                    data["jtbd"] = task.get("jtbd")
             
             yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
             

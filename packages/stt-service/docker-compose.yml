@@ -22,6 +22,11 @@ services:
       - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
       - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-int8}
       - WHISPER_MODEL_DIR=/app/models
+      - STT_PROVIDER=${STT_PROVIDER:-opus}
+      - API_KEY_OPUS=${API_KEY_OPUS:-}
+      - OPUS_BASE_URL=${OPUS_BASE_URL:-https://api.openai.com/v1}
+      - OPUS_TRANSCRIPTION_MODEL=${OPUS_TRANSCRIPTION_MODEL:-whisper-1}
+      - OPUS_CHAT_MODEL=${OPUS_CHAT_MODEL:-gpt-4o-mini}
       - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}
       - APINET_API_KEY=${APINET_API_KEY:-}
       - APINET_BASE_URL=${APINET_BASE_URL:-https://apinet.cloud/v1}

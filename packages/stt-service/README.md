@@ -1,6 +1,6 @@
 # HearYou STT Service
 
-FastAPI веб-сервис для локальной транскрибации аудио через Whisper с красивым веб-интерфейсом.
+FastAPI веб-сервис для транскрибации аудио через Whisper или внешний API-провайдер с красивым веб-интерфейсом.
 
 ## ✨ Возможности
 
@@ -15,17 +15,26 @@ FastAPI веб-сервис для локальной транскрибации
 
 ## 🚀 Быстрый старт
 
-### 1. Конфигурация Whisper
+### 1. Конфигурация STT
 
-Yandex API ключи больше не нужны. По умолчанию сервис использует `faster-whisper` на CPU:
+Если в окружении задан `API_KEY_OPUS`, сервис по умолчанию использует внешний transcription API:
 
 ```bash
+export API_KEY_OPUS=...
+export OPUS_BASE_URL=https://api.openai.com/v1
+export OPUS_TRANSCRIPTION_MODEL=whisper-1
+```
+
+Если ключа нет, сервис падает обратно на `faster-whisper` на CPU:
+
+```bash
+export STT_PROVIDER=local
 export WHISPER_MODEL=small
 export WHISPER_DEVICE=cpu
 export WHISPER_COMPUTE_TYPE=int8
 ```
 
-Модель можно менять через `WHISPER_MODEL`: `tiny`, `base`, `small`, `medium`, `large-v3`.
+Модель Whisper можно менять через `WHISPER_MODEL`: `tiny`, `base`, `small`, `medium`, `large-v3`.
 
 ### 2. Запуск (Docker)
 
@@ -118,6 +127,16 @@ The preprocessing is **transparent** - if it fails for any reason, the system au
 | `clean` | bool | Убрать слова-паразиты | false |
 | `corrections` | bool | Применять исправления | true |
 | `language` | string | Язык (ru-RU, en-US) | ru-RU |
+| `quality_mode` | string | Legacy UI switch; backend chooses STT provider | quality |
+
+## 🔑 Переменные окружения API STT
+
+| Переменная | Описание | По умолчанию |
+|------------|----------|--------------|
+| `STT_PROVIDER` | `opus` или `local` | `opus` |
+| `API_KEY_OPUS` | Ключ внешнего transcription API | unset |
+| `OPUS_BASE_URL` | Базовый URL внешнего API | `https://api.openai.com/v1` |
+| `OPUS_TRANSCRIPTION_MODEL` | Модель transcription API | `whisper-1` |
 
 ## ⚙️ Переменные окружения Whisper
 
