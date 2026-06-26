@@ -69,29 +69,40 @@ class JTBDAnalyzer:
             provider: anthropic или apinet; если None, выбирается автоматически
             base_url: базовый URL для OpenAI-compatible провайдера
         """
+        apinet_key = (api_key or os.getenv("APINET_API_KEY", "").strip()).strip()
+        opus_key = (
+            os.getenv("API_KEY_OPUS", "").strip()
+            or _load_key_from_env_file(os.getenv("OPUS_ENV_FILE", "/Users/kaban/codex/.env"), "API_KEY_OPUS")
+            or ""
+        ).strip()
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+
         requested_provider = (provider or os.getenv("JTBD_PROVIDER", "")).strip().lower()
         if requested_provider and requested_provider not in ("anthropic", "apinet"):
             raise ValueError("JTBD_PROVIDER должен быть anthropic или apinet.")
 
         if not requested_provider:
-            requested_provider = "apinet" if (
-                api_key
-                or os.getenv("APINET_API_KEY", "").strip()
-                or os.getenv("API_KEY_OPUS", "").strip()
-                or _load_key_from_env_file(os.getenv("OPUS_ENV_FILE", "/Users/kaban/codex/.env"), "API_KEY_OPUS")
-            ) else "anthropic"
+            if apinet_key:
+                requested_provider = "apinet"
+                self._api_key_source = "apinet"
+            elif opus_key:
+                requested_provider = "apinet"
+                self._api_key_source = "opus"
+            else:
+                requested_provider = "anthropic"
+                self._api_key_source = "anthropic"
+        else:
+            self._api_key_source = "apinet"
 
         self.provider = requested_provider
-        self.api_key = (api_key or (
-            os.getenv("APINET_API_KEY", "").strip() if self.provider == "apinet"
-            else os.getenv("ANTHROPIC_API_KEY", "").strip()
-        )).strip()
-        if self.provider == "apinet" and not self.api_key:
-            self.api_key = (
-                os.getenv("API_KEY_OPUS", "").strip()
-                or _load_key_from_env_file(os.getenv("OPUS_ENV_FILE", "/Users/kaban/codex/.env"), "API_KEY_OPUS")
-                or ""
-            ).strip()
+        if self.provider == "apinet":
+            self.api_key = apinet_key or opus_key
+            if self.api_key and not apinet_key and opus_key:
+                self._api_key_source = "opus"
+        else:
+            self.api_key = (api_key or anthropic_key).strip()
+            self._api_key_source = "anthropic"
+
         if not self.api_key:
             raise ValueError(
                 ("APINET_API_KEY" if self.provider == "apinet" else "ANTHROPIC_API_KEY")
@@ -99,14 +110,17 @@ class JTBDAnalyzer:
             )
 
         if self.provider == "apinet":
-            if self.api_key and (os.getenv("APINET_API_KEY", "").strip() or not os.getenv("ANTHROPIC_API_KEY", "").strip()):
+            if self._api_key_source == "opus":
                 self.model = model if model != DEFAULT_ANTHROPIC_MODEL else (
-                    os.getenv("APINET_MODEL", "")
-                    or os.getenv("OPUS_CHAT_MODEL", "")
+                    os.getenv("OPUS_CHAT_MODEL", "")
                     or os.getenv("OPUS_MODEL", "")
                     or DEFAULT_OPUS_CHAT_MODEL
                 ).strip() or DEFAULT_OPUS_CHAT_MODEL
-                self.base_url = (base_url or os.getenv("APINET_BASE_URL", "") or os.getenv("OPUS_BASE_URL", DEFAULT_OPUS_BASE_URL)).strip() or DEFAULT_OPUS_BASE_URL
+                self.base_url = (
+                    base_url
+                    or os.getenv("OPUS_BASE_URL", "")
+                    or DEFAULT_OPUS_BASE_URL
+                ).strip() or DEFAULT_OPUS_BASE_URL
             else:
                 self.model = model if model != DEFAULT_ANTHROPIC_MODEL else (
                     os.getenv("APINET_MODEL", DEFAULT_APINET_MODEL).strip() or DEFAULT_APINET_MODEL

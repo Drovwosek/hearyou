@@ -46,6 +46,8 @@ export const useHistory = () => {
       speaker_labeling: data.options?.speaker_labeling || false,
       jtbd_analysis: data.options?.analyze_jtbd || false,
       jtbd: data.jtbd,
+      words_with_speakers: data.words_with_speakers,
+      speaker_segments: data.speaker_segments,
     };
   };
 

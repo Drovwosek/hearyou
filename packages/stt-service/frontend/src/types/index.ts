@@ -6,6 +6,17 @@ export interface TranscriptionResult {
   speaker_labeling: boolean;
   jtbd_analysis: boolean;
   jtbd?: JTBDResult;
+  words_with_speakers?: Array<{
+    word: string;
+    speaker?: string;
+    startTime?: string;
+    endTime?: string;
+  }>;
+  speaker_segments?: Array<{
+    speaker: string;
+    start: number;
+    end: number;
+  }>;
 }
 
 export interface SpeakerMessage {
@@ -21,23 +32,45 @@ export interface SpeakerInfo {
 
 export interface JTBDResult {
   jobs?: Array<{
-    job: string;
+    job?: string;
+    text?: string;
     context: string;
-    outcome: string;
+    outcome?: string;
+    type?: string;
     quote: string;
+    confidence?: string;
   }>;
   pains?: Array<{
-    pain: string;
-    severity: string;
+    pain?: string;
+    text?: string;
+    severity?: string;
     context: string;
     quote: string;
+    confidence?: string;
   }>;
   gains?: Array<{
-    gain: string;
-    value: string;
+    gain?: string;
+    text?: string;
+    value?: string;
+    type?: string;
     context: string;
     quote: string;
+    confidence?: string;
   }>;
+  context?: Array<{
+    text: string;
+    quote: string;
+    dimension?: string;
+    confidence?: string;
+  }>;
+  triggers?: Array<{
+    text: string;
+    quote: string;
+    type?: string;
+    confidence?: string;
+  }>;
+  summary?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface StatusUpdate {
@@ -47,6 +80,8 @@ export interface StatusUpdate {
   result?: string;
   error?: string;
   jtbd?: JTBDResult;
+  words_with_speakers?: TranscriptionResult['words_with_speakers'];
+  speaker_segments?: TranscriptionResult['speaker_segments'];
 }
 
 export interface HistoryItem {

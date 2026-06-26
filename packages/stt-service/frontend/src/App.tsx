@@ -36,6 +36,8 @@ function App() {
         speaker_labeling: data.speaker_labeling || false,
         jtbd_analysis: data.jtbd_analysis || false,
         jtbd: data.jtbd,
+        words_with_speakers: data.words_with_speakers,
+        speaker_segments: data.speaker_segments,
       };
 
       setResult(resultData);
@@ -150,6 +152,8 @@ function App() {
               speaker_labeling: speakerLabeling,
               jtbd_analysis: jtbdAnalysis,
               jtbd: data.jtbd,
+              words_with_speakers: data.words_with_speakers,
+              speaker_segments: data.speaker_segments,
             };
 
             setResult(resultData);
@@ -212,6 +216,7 @@ function App() {
             filename={result.filename}
             taskId={result.task_id}
             speakerLabeling={result.speaker_labeling}
+            wordsWithSpeakers={result.words_with_speakers}
           />
           {result.jtbd && <JTBDAnalysis jtbd={result.jtbd} />}
         </div>

@@ -92,6 +92,8 @@ export const useUpload = (options: UploadOptions = {}) => {
             speaker_labeling: uploadMetadataRef.current.speakerLabeling,
             jtbd_analysis: uploadMetadataRef.current.jtbdAnalysis,
             jtbd: data.jtbd,
+            words_with_speakers: data.words_with_speakers,
+            speaker_segments: data.speaker_segments,
           };
 
           updateState({

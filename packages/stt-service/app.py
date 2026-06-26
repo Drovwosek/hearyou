@@ -939,6 +939,8 @@ async def process_audio_file(
         
         # Сохранение результата
         result_file = RESULTS_DIR / f"{task_id}.json"
+        words_with_speakers = result.get("words_with_speakers") if isinstance(result, dict) else None
+        speaker_segments_result = result.get("speaker_segments") if isinstance(result, dict) else None
         result_data = {
             "task_id": task_id,
             "result": text,  # ✅ Фронт ждёт именно "result"
@@ -949,6 +951,8 @@ async def process_audio_file(
             "jtbd_analysis": options.get("analyze_jtbd", False),
             "options": options,
             "raw_result": result,
+            "words_with_speakers": words_with_speakers,
+            "speaker_segments": speaker_segments_result,
             "jtbd": jtbd_result,
         }
         
@@ -973,6 +977,10 @@ async def process_audio_file(
         tasks_status[task_id]["result_file"] = str(result_file)
         if jtbd_result is not None:
             tasks_status[task_id]["jtbd"] = jtbd_result
+        if words_with_speakers is not None:
+            tasks_status[task_id]["words_with_speakers"] = words_with_speakers
+        if speaker_segments_result is not None:
+            tasks_status[task_id]["speaker_segments"] = speaker_segments_result
         
     except Exception as e:
         error_msg = str(e)
@@ -1408,8 +1416,16 @@ async def stream_status(task_id: str):
                             data["result"] = result_data.get("text", "")
                             if result_data.get("jtbd") is not None:
                                 data["jtbd"] = result_data.get("jtbd")
+                            if result_data.get("words_with_speakers") is not None:
+                                data["words_with_speakers"] = result_data.get("words_with_speakers")
+                            if result_data.get("speaker_segments") is not None:
+                                data["speaker_segments"] = result_data.get("speaker_segments")
                 if task.get("jtbd") is not None and "jtbd" not in data:
                     data["jtbd"] = task.get("jtbd")
+                if task.get("words_with_speakers") is not None and "words_with_speakers" not in data:
+                    data["words_with_speakers"] = task.get("words_with_speakers")
+                if task.get("speaker_segments") is not None and "speaker_segments" not in data:
+                    data["speaker_segments"] = task.get("speaker_segments")
             
             yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
             

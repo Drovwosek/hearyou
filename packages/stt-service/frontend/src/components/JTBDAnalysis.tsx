@@ -43,22 +43,29 @@ const JTBDAnalysis: React.FC<JTBDAnalysisProps> = ({ jtbd }) => {
       </div>
 
       {isExpanded && (
-        <div className="jtbd-content">
-          <div className="jtbd-description">
-            <p>
-              <strong>Jobs-to-be-Done</strong> — фреймворк для понимания истинных потребностей 
-              пользователей через анализ их целей (jobs), болей (pains) и выгод (gains).
-            </p>
-          </div>
-
-          <div className="jtbd-categories">
-            {categories.map((category, idx) => (
-              <JTBDCategory key={idx} category={category} />
-            ))}
-          </div>
+      <div className="jtbd-content">
+        <div className="jtbd-description">
+          <p>
+            <strong>Jobs-to-be-Done</strong> — фреймворк для понимания истинных потребностей 
+            пользователей через анализ их целей (jobs), болей (pains) и выгод (gains).
+          </p>
         </div>
-      )}
-    </div>
+
+        <div className="jtbd-categories">
+          {categories.map((category, idx) => (
+            <JTBDCategory key={idx} category={category} />
+          ))}
+        </div>
+
+        {jtbd.summary && (
+          <div className="jtbd-summary">
+            <h3>Итог</h3>
+            <p>{jtbd.summary}</p>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
   );
 };
 
