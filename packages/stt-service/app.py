@@ -307,7 +307,13 @@ else:
 # Инициализация JTBD анализатора (с обработкой ошибок если нет API ключа)
 if JTBD_AVAILABLE:
     try:
-        jtbd_analyzer = JTBDAnalyzer()
+        jtbd_api_key = getattr(stt, "api_key", None)
+        jtbd_base_url = getattr(stt, "base_url", None)
+        jtbd_analyzer = JTBDAnalyzer(
+            api_key=jtbd_api_key,
+            provider="apinet",
+            base_url=jtbd_base_url if jtbd_base_url else None,
+        )
         logger.info("JTBD Analyzer initialized successfully")
     except (ValueError, RuntimeError) as e:
         logger.warning(f"JTBD Analyzer not initialized: {e}")
